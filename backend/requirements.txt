@@ -1,0 +1,41 @@
+# ── Core API framework ────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+websockets==13.1
+
+# ── Validation / settings ─────────────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# ── Azure Identity ────────────────────────────────────────────────────────────
+azure-identity==1.20.0
+
+# ── Azure AI / Foundry Agents (v2 Responses API) ──────────────────────────────
+azure-ai-projects>=2.0.0
+azure-ai-agents>=1.1.0
+azure-ai-textanalytics>=5.3.0
+openai>=2.8.0
+
+# ── Microsoft Agent Framework (MAF) ──────────────────────────────────────────
+# Install separately: pip install agent-framework --pre
+# agent-framework
+
+# ── Azure data services ───────────────────────────────────────────────────────
+azure-cosmos==4.9.0
+azure-storage-blob==12.24.0
+azure-search-documents==11.6.0b8
+
+# ── Azure Speech ──────────────────────────────────────────────────────────────
+azure-cognitiveservices-speech==1.43.0
+
+# ── Azure Monitor ─────────────────────────────────────────────────────────────
+azure-monitor-opentelemetry==1.6.4
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+httpx==0.28.1
+tenacity==9.0.0
+structlog==24.4.0
+anyio[trio]==4.7.0
+yfinance>=0.2.40
