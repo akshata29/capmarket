@@ -121,6 +121,11 @@ export const clientsApi = {
       params: { session_id: sessionId, advisor_id: _advisorId },
     }).then(r => r.data),
 
+  syncFromMeeting: (clientId: string) =>
+    api.post<ClientProfile>(`/clients/${clientId}/sync-from-meeting`, null, {
+      params: { advisor_id: _advisorId },
+    }).then(r => normalizeClient(r.data)),
+
   remove: (id: string) =>
     api.delete(`/clients/${id}`, { params: { advisor_id: _advisorId } }).then(r => r.data),
 }

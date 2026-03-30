@@ -1,0 +1,2 @@
+az acr build --registry astdnapublicacr --image capmarket:latest --file Dockerfile .
+az webapp restart --name astdnacapmarket --resource-group astdnapublic

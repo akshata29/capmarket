@@ -165,8 +165,8 @@ export interface ClientProfile {
   meeting_count?:      number
   satisfaction_score?: number
 
-  // AI-extracted
-  life_events?:  string[]
+  // AI-extracted (life events may be strings or structured {event, timeline, ...} objects)
+  life_events?:  (string | Record<string, unknown>)[]
   concerns?:     string[]
   preferences?:  string[]
 

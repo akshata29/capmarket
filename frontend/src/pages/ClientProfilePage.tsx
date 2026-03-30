@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TrendingUp, Mic, Shield, Trash2, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, FileText, Target, Activity, BarChart2 } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Mic, Shield, Trash2, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, FileText, Target, Activity, BarChart2, RefreshCw } from 'lucide-react'
 import { clientsApi, meetingsApi, portfolioApi } from '@/api'
 import type { ClientProfile, MeetingSession, PortfolioProposal } from '@/types'
 import SentimentGauge from '@/components/meeting/SentimentGauge'
@@ -15,6 +15,8 @@ export default function ClientProfilePage() {
   const [loading, setLoading] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null)
 
   useEffect(() => {
@@ -46,6 +48,23 @@ export default function ClientProfilePage() {
       navigate('/clients')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleSyncFromMeeting = async () => {
+    if (!clientId) return
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const updated = await clientsApi.syncFromMeeting(clientId)
+      setClient(updated)
+      setSyncMsg('Profile synced from meeting data')
+      setTimeout(() => setSyncMsg(null), 4000)
+    } catch (err: any) {
+      setSyncMsg(err?.response?.data?.detail ?? 'Sync failed')
+      setTimeout(() => setSyncMsg(null), 5000)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -109,13 +128,21 @@ export default function ClientProfilePage() {
               <Link to="/portfolio" className="btn-secondary flex items-center gap-2 text-xs">
                 <TrendingUp size={13} /> Build Portfolio
               </Link>
-              <Link
-                to={`/audit?client_id=${clientId}`}
+              <Link to={`/audit?client_id=${clientId}`}
                 className="btn-secondary flex items-center gap-2 text-xs"
                 title="View all audit trail events for this client"
               >
                 <FileText size={13} /> Audit Trail
               </Link>
+              <button
+                onClick={handleSyncFromMeeting}
+                disabled={syncing}
+                className="btn-secondary flex items-center gap-2 text-xs"
+                title="Re-populate profile fields from meeting extraction data"
+              >
+                <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Syncing…' : 'Sync Profile'}
+              </button>
               <button
                 onClick={() => setConfirmDelete(true)}
                 className="p-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 border border-border transition-colors"
@@ -157,6 +184,17 @@ export default function ClientProfilePage() {
         </div>
       </div>
 
+      {/* Sync status toast */}
+      {syncMsg && (
+        <div className={`text-xs px-4 py-2 rounded-lg border ${
+          syncMsg.includes('failed') || syncMsg.includes('Failed')
+            ? 'bg-red-900/30 border-red-700/40 text-red-400'
+            : 'bg-green-900/30 border-green-700/40 text-green-400'
+        }`}>
+          {syncMsg}
+        </div>
+      )}
+
       {/* ── Financial snapshot ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
         {[
@@ -182,12 +220,24 @@ export default function ClientProfilePage() {
             <div className="text-gray-500 text-xs">None recorded</div>
           ) : (
             <ul className="space-y-1.5">
-              {client.life_events!.map((ev, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-gold mt-1 shrink-0" />
-                  {ev}
-                </li>
-              ))}
+              {client.life_events!.map((ev, i) => {
+                const label =
+                  typeof ev === 'string'
+                    ? ev
+                    : (ev as Record<string, unknown>).event ??
+                      (ev as Record<string, unknown>).description ??
+                      (ev as Record<string, unknown>).name ??
+                      JSON.stringify(ev)
+                const timeline = typeof ev === 'object' && ev !== null
+                  ? (ev as Record<string, unknown>).timeline as string | undefined
+                  : undefined
+                return (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-gold mt-1 shrink-0" />
+                    <span>{String(label)}{timeline ? ` — ${timeline}` : ''}</span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>

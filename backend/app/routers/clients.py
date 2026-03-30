@@ -41,8 +41,27 @@ def _normalize_client(c: dict[str, Any]) -> dict[str, Any]:
     Maps backend model field names to what the TypeScript frontend expects.
     Mutates in-place and returns the dict.
     """
-    # AI-extracted lists: expose under both names for compatibility
-    c.setdefault("life_events",  c.get("extracted_life_events", []))
+    import ast as _ast
+
+    def _parse_life_event(e: Any) -> Any:
+        """Convert a stringified dict back to a proper dict when possible.
+        Handles both JSON ({"key": ...}) and Python repr ({'key': ...}) forms.
+        """
+        if isinstance(e, dict):
+            return e
+        if isinstance(e, str):
+            s = e.strip()
+            if s.startswith("{"):
+                try:
+                    result = _ast.literal_eval(s)
+                    if isinstance(result, dict):
+                        return result
+                except Exception:
+                    pass
+        return e
+
+    raw_events = c.get("extracted_life_events", [])
+    c["life_events"] = [_parse_life_event(e) for e in raw_events] if raw_events else c.get("life_events", [])
     c.setdefault("concerns",     c.get("extracted_concerns", []))
     c.setdefault("preferences",  list(c.get("extracted_preferences", {}).values()) if isinstance(c.get("extracted_preferences"), dict) else c.get("extracted_preferences", []))
 
@@ -89,6 +108,38 @@ def _normalize_client(c: dict[str, Any]) -> dict[str, Any]:
         c["relationship_since"] = str(c["relationship_start"])
 
     return c
+
+
+async def _try_repair_unknown_prospect(store: Any, client: dict) -> None:
+    """
+    If a client landed in Cosmos as 'Unknown Prospect' (name extraction failed
+    at promote-time), attempt to back-fill from the most recent completed
+    meeting session's profile_extractions.  Runs transparently on first GET.
+    """
+    client_id  = client.get("client_id", "")
+    advisor_id = client.get("advisor_id", "")
+    if not client_id or not advisor_id:
+        return
+    try:
+        from backend.app.orchestration.meeting_workflow import _apply_extractions_to_client
+        sessions = await store.list_sessions_for_client(client_id)
+        for session in sessions:
+            extractions = (session.get("profile_extractions") or {})
+            if not (extractions.get("extracted_personal") or extractions.get("extracted_financial")):
+                continue
+            await _apply_extractions_to_client(
+                store,
+                client_id=client_id,
+                advisor_id=advisor_id,
+                extractions=extractions,
+                session_id=session.get("session_id", "repair"),
+            )
+            updated = await store.get_client(client_id, advisor_id)
+            if updated:
+                client.update(updated)
+            return
+    except Exception as exc:
+        logger.warning("auto_repair_unknown_prospect_failed client=%s error=%s", client_id, exc)
 
 
 @router.post("", response_model=dict)
@@ -210,6 +261,20 @@ async def get_client(
     client = await store.get_client(client_id, advisor_id)
     if not client:
         raise HTTPException(404, "Client not found")
+    # Auto-repair: apply meeting extractions when key CRM data is still missing.
+    # Triggers for "Unknown Prospect" names AND for clients whose financial
+    # fields were not populated at promote-time (e.g. name was manually fixed
+    # but income/net-worth/AUM are still 0).
+    _needs_repair = (
+        client.get("first_name", "").lower() in ("", "unknown")
+        and client.get("last_name", "").lower() in ("", "prospect")
+    ) or (
+        not client.get("annual_income")
+        and not client.get("net_worth")
+        and not client.get("investable_assets")
+    )
+    if _needs_repair:
+        await _try_repair_unknown_prospect(store, client)
     return _normalize_client(client)
 
 
@@ -283,6 +348,59 @@ async def get_client_portfolios(client_id: str) -> list[dict[str, Any]]:
     return await store.list_portfolios_for_client(client_id)
 
 
+@router.post("/{client_id}/sync-from-meeting", response_model=dict)
+async def sync_profile_from_meeting(
+    client_id: str,
+    advisor_id: str = Query(...),
+) -> dict[str, Any]:
+    """
+    Force-sync the client's CRM profile from their most recent completed meeting.
+
+    Unlike the passive auto-repair (which only patches blank fields), this endpoint
+    is explicitly invoked by the advisor and updates ALL zero/blank financial fields
+    regardless of when or how the client record was created.
+    """
+    store = get_cosmos_store()
+    client = await store.get_client(client_id, advisor_id)
+    if not client:
+        raise HTTPException(404, "Client not found")
+
+    sessions = await store.list_sessions_for_client(client_id)
+    if not sessions:
+        raise HTTPException(404, "No meeting sessions found for this client")
+
+    # Pick the session with the richest profile_extractions
+    best_session = None
+    best_score = -1
+    for s in sessions:
+        pe = s.get("profile_extractions") or {}
+        fin = pe.get("extracted_financial") or {}
+        per = pe.get("extracted_personal") or {}
+        score = len(fin) + len(per) + (10 if s.get("status") == "completed" else 0)
+        if score > best_score:
+            best_score = score
+            best_session = s
+
+    if not best_session:
+        raise HTTPException(404, "No session with profile data found")
+
+    extractions = best_session.get("profile_extractions") or {}
+    if not extractions:
+        raise HTTPException(422, "Session has no profile extractions — meeting may not have been finalized")
+
+    from backend.app.orchestration.meeting_workflow import _apply_extractions_to_client
+    await _apply_extractions_to_client(
+        store,
+        client_id=client_id,
+        advisor_id=advisor_id,
+        extractions=extractions,
+        session_id=best_session.get("session_id", "manual-sync"),
+    )
+
+    updated = await store.get_client(client_id, advisor_id)
+    return _normalize_client(updated or client)
+
+
 @router.post("/{client_id}/merge-profile", response_model=dict)
 async def merge_profile_from_meeting(
     client_id: str,
@@ -314,6 +432,40 @@ async def merge_profile_from_meeting(
     extractions = session.get("profile_extractions", {})
     if not extractions:
         return {"status": "no_extractions", "message": "No profile extractions found in session"}
+
+    personal  = extractions.get("extracted_personal",  {}) or {}
+
+    # ── Name repair: fix "Unknown Prospect" sentinel ─────────────────────────
+    is_unknown = (
+        client.get("first_name", "").lower() in ("", "unknown")
+        and client.get("last_name", "").lower() in ("", "prospect")
+    )
+    if is_unknown:
+        full_name  = personal.get("name", "")
+        name_parts = full_name.split() if isinstance(full_name, str) and full_name else []
+        ai_first = personal.get("first_name") or (name_parts[0] if name_parts else "")
+        ai_last  = personal.get("last_name") or (" ".join(name_parts[1:]) if len(name_parts) > 1 else "")
+        if ai_first:
+            client["first_name"] = ai_first
+        if ai_last:
+            client["last_name"] = ai_last
+
+    # ── Contact / demographics (fill-in blanks only) ──────────────────────────
+    if not client.get("email"):
+        v = personal.get("email") or personal.get("email_address", "")
+        if v:
+            client["email"] = v
+    if not client.get("phone"):
+        v = personal.get("phone") or personal.get("phone_number", "")
+        if v:
+            client["phone"] = v
+    if not client.get("age") and personal.get("age"):
+        try:
+            client["age"] = int(str(personal["age"]))
+        except (ValueError, TypeError):
+            pass
+    if not client.get("spouse_name") and personal.get("spouse_name"):
+        client["spouse_name"] = personal["spouse_name"]
 
     # Apply extracted metadata to the client profile
     if extractions.get("extracted_concerns"):

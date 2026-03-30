@@ -107,6 +107,234 @@ async def _log_event(
         logger.warning("audit_log_failed error=%s", exc)
 
 
+async def _apply_extractions_to_client(
+    store: Any,
+    client_id: str,
+    advisor_id: str,
+    extractions: dict[str, Any],
+    session_id: str,
+) -> None:
+    """
+    Merge profile_extractions from a completed meeting into the stored client record.
+
+    Called automatically by complete_meeting() so that:
+    - Prospects promoted mid-meeting (linked_client_id) get their name/financials
+      updated with the richer post-meeting full extraction.
+    - Real (non-prospect) clients have their CRM data enriched after each meeting.
+
+    All updates are additive/upsert — existing non-zero values are never overwritten
+    unless the client is still named "Unknown Prospect" (a sentinel indicating the
+    record was created before the extraction had run).
+    """
+    client = await store.get_client(client_id, advisor_id)
+    if not client:
+        logger.warning(
+            "apply_extractions_no_client client=%s session=%s", client_id, session_id
+        )
+        return
+
+    personal  = extractions.get("extracted_personal",  {}) or {}
+    financial = extractions.get("extracted_financial", {}) or {}
+    risk_data = extractions.get("extracted_risk",      {}) or {}
+
+    def _f(d: dict, *keys: str) -> float:
+        """
+        Extract a float from a dict by trying multiple key names.
+        Handles nested dicts (takes the 'total' or first numeric child),
+        string values with $/, separators, and numeric values directly.
+        """
+        def _coerce(v: Any) -> float:
+            if isinstance(v, (int, float)):
+                return float(v)
+            if isinstance(v, dict):
+                # e.g. {"total": 608000, "breakdown": {...}}
+                for sub_k in ("total", "value", "amount", "balance"):
+                    sv = v.get(sub_k)
+                    if sv is not None:
+                        try:
+                            return float(str(sv).replace(",", "").replace("$", "").strip())
+                        except (ValueError, TypeError):
+                            pass
+                # fallback: first numeric value in the dict
+                for sv in v.values():
+                    if isinstance(sv, (int, float)):
+                        return float(sv)
+            if isinstance(v, str):
+                cleaned = v.replace(",", "").replace("$", "").replace("K", "000").strip()
+                # strip trailing unit labels like "M" → multiply by 1M
+                if cleaned.endswith("M"):
+                    try:
+                        return float(cleaned[:-1]) * 1_000_000
+                    except ValueError:
+                        pass
+                try:
+                    return float(cleaned)
+                except ValueError:
+                    pass
+            return 0.0
+
+        for k in keys:
+            v = d.get(k)
+            if v is not None:
+                result = _coerce(v)
+                if result:
+                    return result
+        return 0.0
+
+    changed = False
+
+    # ── Name: repair "Unknown Prospect" sentinel from failed/empty extraction ──
+    is_unknown = (
+        client.get("first_name", "").lower() in ("", "unknown")
+        and client.get("last_name", "").lower() in ("", "prospect")
+    )
+    if is_unknown:
+        full_name = (
+            personal.get("name") or personal.get("full_name") or
+            personal.get("client_name") or personal.get("display_name") or ""
+        )
+        name_parts = full_name.split() if isinstance(full_name, str) and full_name else []
+        ai_first = personal.get("first_name") or (name_parts[0] if name_parts else "")
+        ai_last  = personal.get("last_name") or (" ".join(name_parts[1:]) if len(name_parts) > 1 else "")
+        if ai_first:
+            client["first_name"] = ai_first
+            changed = True
+        if ai_last:
+            client["last_name"] = ai_last
+            changed = True
+
+    # ── Contact (only fill-in blanks) ────────────────────────────────────────
+    if not client.get("email"):
+        v = personal.get("email") or personal.get("email_address", "")
+        if v:
+            client["email"] = v
+            changed = True
+    if not client.get("phone"):
+        v = personal.get("phone") or personal.get("phone_number", "")
+        if v:
+            client["phone"] = v
+            changed = True
+
+    # ── Demographics ──────────────────────────────────────────────────────────
+    if not client.get("age"):
+        v = personal.get("age")
+        if v:
+            try:
+                client["age"] = int(str(v))
+                changed = True
+            except (ValueError, TypeError):
+                pass
+    if not client.get("spouse_name") and personal.get("spouse_name"):
+        client["spouse_name"] = personal["spouse_name"]
+        changed = True
+    if not client.get("spouse_age") and personal.get("spouse_age"):
+        try:
+            client["spouse_age"] = int(str(personal["spouse_age"]))
+            changed = True
+        except (ValueError, TypeError):
+            pass
+
+    # ── Financial figures (zero = missing; update from extraction) ────────────
+    fin_fields = [
+        ("annual_income",     ("annual_income", "income", "salary", "annual_salary",
+                               "gross_income", "employment_income", "combined_income",
+                               "total_income", "household_income", "joint_income")),
+        ("net_worth",         ("net_worth", "total_net_worth", "estimated_net_worth",
+                               "total_wealth", "total_assets_minus_liabilities")),
+        ("investable_assets", ("investable_assets", "aum", "liquid_assets",
+                               "retirement_assets", "investment_assets", "total_investments",
+                               "total_retirement", "retirement_accounts", "retirement_savings",
+                               "total_401k", "total_403b", "403b_total", "401k_total",
+                               "total_savings", "total_portfolio")),
+        ("monthly_expenses",  ("monthly_expenses", "expenses", "monthly_spending",
+                               "living_expenses", "total_monthly_expenses",
+                               "monthly_living_expenses", "combined_monthly_expenses")),
+        ("household_income",  ("household_income", "total_income", "joint_income",
+                               "combined_income", "combined_salary")),
+    ]
+    for field, keys in fin_fields:
+        if not client.get(field):
+            v = _f(financial, *keys)
+            if v:
+                client[field] = v
+                changed = True
+    # Keep aum alias in sync
+    if not client.get("aum") and client.get("investable_assets"):
+        client["aum"] = client["investable_assets"]
+        changed = True
+
+    # ── Risk tolerance (only if not yet set) ──────────────────────────────────
+    if risk_data.get("tolerance"):
+        rp = client.setdefault("risk_profile", {})
+        if not rp.get("tolerance") or rp.get("tolerance") == "moderate":
+            rp["tolerance"] = risk_data["tolerance"]
+            changed = True
+
+    # ── Goals, concerns, life-events, action items (additive merge) ───────────
+    if extractions.get("extracted_concerns"):
+        existing = set(client.get("extracted_concerns", []))
+        before = len(existing)
+        existing.update(str(c) for c in extractions["extracted_concerns"])
+        if len(existing) != before:
+            client["extracted_concerns"] = list(existing)
+            changed = True
+
+    if extractions.get("extracted_life_events"):
+        # Preserve dicts (rich objects); convert only plain non-dict items to str
+        # so the frontend can render them as structured cards, not raw repr strings.
+        existing_events: list = client.get("extracted_life_events") or []
+        existing_keys = {
+            (e.get("event", "") if isinstance(e, dict) else str(e))
+            for e in existing_events
+        }
+        for e in extractions["extracted_life_events"]:
+            key = e.get("event", "") if isinstance(e, dict) else str(e)
+            if key not in existing_keys:
+                existing_events.append(e)
+                existing_keys.add(key)
+                changed = True
+        if changed:
+            client["extracted_life_events"] = existing_events
+
+    if extractions.get("key_action_items"):
+        existing = set(client.get("next_actions", []))
+        before = len(existing)
+        existing.update(
+            a if isinstance(a, str) else str(a.get("action", a))
+            for a in extractions["key_action_items"]
+        )
+        if len(existing) != before:
+            client["next_actions"] = list(existing)
+            changed = True
+
+    if extractions.get("extracted_goals"):
+        existing_goals: list[dict] = client.get("goals") or []
+        existing_names = {g.get("name", "") for g in existing_goals}
+        for raw in extractions["extracted_goals"]:
+            name = raw.get("name", str(raw)) if isinstance(raw, dict) else str(raw)
+            if name not in existing_names:
+                existing_goals.append(raw if isinstance(raw, dict) else {"name": name[:120], "goal_type": "custom", "priority": 1})
+                existing_names.add(name)
+                changed = True
+        if changed:
+            client["goals"] = existing_goals
+
+    # Store the raw financial extraction in metadata for display-time back-fill
+    meta = client.setdefault("metadata", {})
+    if financial and not meta.get("extracted_financial"):
+        meta["extracted_financial"] = financial
+        changed = True
+
+    if changed:
+        client["last_meeting_at"] = datetime.now(timezone.utc).isoformat()
+        client["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await store.save_client(client)
+        logger.info(
+            "client_profile_updated_from_meeting client=%s session=%s",
+            client_id, session_id,
+        )
+
+
 class MeetingWorkflow:
     """
     Orchestrates all agents for the meeting intelligence lifecycle.
@@ -451,6 +679,34 @@ class MeetingWorkflow:
         }
 
         await store.save_session(session_doc)
+
+        # ── Auto-update the client CRM record with the freshly extracted data ──
+        # Two cases:
+        #  (a) Prospect meeting that was already promoted mid-meeting: the session
+        #      has a linked_client_id; update that record with full post-meeting data.
+        #  (b) Real (non-prospect) client meeting: update the client directly.
+        # We do this here because complete_meeting() is the single finalisation
+        # point that always runs with the richest available profile_extractions,
+        # regardless of whether the caller is stop_and_complete() or the manual
+        # finalize→complete flow.
+        linked_client_id = existing.get("linked_client_id")
+        update_client_id = linked_client_id or (
+            self.client_id if not self.client_id.startswith("prospect-") else None
+        )
+        if update_client_id and self.state.profile_extractions:
+            try:
+                await _apply_extractions_to_client(
+                    store,
+                    client_id=update_client_id,
+                    advisor_id=self.advisor_id,
+                    extractions=self.state.profile_extractions,
+                    session_id=self.session_id,
+                )
+            except Exception as upd_exc:
+                logger.warning(
+                    "client_profile_update_from_meeting_failed client=%s session=%s error=%s",
+                    update_client_id, self.session_id, upd_exc,
+                )
 
         # Build rich audit metadata — summarise transcript + sentiment without bloating the log
         sentiment = self.state.sentiment or {}

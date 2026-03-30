@@ -236,6 +236,7 @@ class PromoteToClientRequest(BaseModel):
     employment_status:    str = "employed"
     life_stage:           str = "accumulation"
     annual_income:        float = 0.0
+    net_worth:            float = 0.0
     investable_assets:    float = 0.0
     monthly_expenses:     float = 0.0
     years_to_retirement:  Optional[int] = None
@@ -613,7 +614,11 @@ def _map_extraction_to_client(
     action_items = profile_extractions.get("key_action_items", []) or []
 
     # ── Name ──────────────────────────────────────────────────────────────────
-    full_name  = personal.get("name", "")
+    # LLMs may return the name under several keys; check them all.
+    full_name = (
+        personal.get("name") or personal.get("full_name") or
+        personal.get("client_name") or personal.get("display_name") or ""
+    )
     name_parts = full_name.split() if isinstance(full_name, str) and full_name else []
     ai_first = personal.get("first_name") or (name_parts[0] if name_parts else "")
     ai_last  = personal.get("last_name")  or (" ".join(name_parts[1:]) if len(name_parts) > 1 else "")
@@ -647,7 +652,7 @@ def _map_extraction_to_client(
     investable_assets = req.investable_assets or _float(financial, "investable_assets", "aum", "liquid_assets")
     annual_income     = req.annual_income     or _float(financial, "annual_income", "income", "salary")
     monthly_expenses  = req.monthly_expenses  or _float(financial, "monthly_expenses", "expenses")
-    net_worth         = _float(financial, "net_worth", "total_net_worth")
+    net_worth         = req.net_worth         or _float(financial, "net_worth", "total_net_worth")
     has_401k          = bool(tax_data.get("has_401k") or financial.get("has_401k"))
     ira_balance       = _float(tax_data, "ira_balance") or _float(financial, "ira_balance")
     roth_balance      = _float(tax_data, "roth_ira_balance") or _float(financial, "roth_ira_balance")
@@ -716,8 +721,8 @@ def _map_extraction_to_client(
         "life_stage":           life_stage,
         "annual_income":        annual_income,
         "investable_assets":    investable_assets,
-        "net_worth":            net_worth,
-        "monthly_expenses":     monthly_expenses,
+        "net_worth":             net_worth,
+        "monthly_expenses":      monthly_expenses,
         "years_to_retirement":  horizon,
         "risk_tolerance":       risk_tolerance,
         "primary_goal_type":    primary_goal,
