@@ -210,24 +210,306 @@ GEORGE_PATRICIA_SULLIVAN = [
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Sarah Chen — Journey Meetings 2-6 (multi-meeting arc)
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .sarah_chen_journey import (
+        SARAH_CHEN_M2_ONBOARDING,
+        SARAH_CHEN_M3_MARKET_DOWNTURN,
+        SARAH_CHEN_M4_ENGAGEMENT,
+        SARAH_CHEN_M5_ANNUAL_REVIEW,
+        SARAH_CHEN_M6_EXPECTING,
+    )
+except ImportError:
+    from scenarios.sarah_chen_journey import (  # type: ignore[no-redef]
+        SARAH_CHEN_M2_ONBOARDING,
+        SARAH_CHEN_M3_MARKET_DOWNTURN,
+        SARAH_CHEN_M4_ENGAGEMENT,
+        SARAH_CHEN_M5_ANNUAL_REVIEW,
+        SARAH_CHEN_M6_EXPECTING,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Robert & Linda Hayes — Journey Meetings 2-6
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .hayes_journey import (
+        HAYES_M2_ONBOARDING,
+        HAYES_M3_HEALTH_SCARE,
+        HAYES_M4_LINDA_RETIREMENT,
+        HAYES_M5_ANNUAL_REVIEW,
+        HAYES_M6_ROBERT_RETIRES,
+    )
+except ImportError:
+    from scenarios.hayes_journey import (  # type: ignore[no-redef]
+        HAYES_M2_ONBOARDING,
+        HAYES_M3_HEALTH_SCARE,
+        HAYES_M4_LINDA_RETIREMENT,
+        HAYES_M5_ANNUAL_REVIEW,
+        HAYES_M6_ROBERT_RETIRES,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Marcus Williams — Journey Meetings 2-6
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .williams_journey import (
+        WILLIAMS_M2_ONBOARDING,
+        WILLIAMS_M3_ACQUIRER_CRISIS,
+        WILLIAMS_M4_NEW_VENTURE,
+        WILLIAMS_M5_ANNUAL_REVIEW,
+        WILLIAMS_M6_SECONDARY_SALE,
+    )
+except ImportError:
+    from scenarios.williams_journey import (  # type: ignore[no-redef]
+        WILLIAMS_M2_ONBOARDING,
+        WILLIAMS_M3_ACQUIRER_CRISIS,
+        WILLIAMS_M4_NEW_VENTURE,
+        WILLIAMS_M5_ANNUAL_REVIEW,
+        WILLIAMS_M6_SECONDARY_SALE,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Jennifer Reyes — Journey Meetings 2-6
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .reyes_journey import (
+        REYES_M2_ONBOARDING,
+        REYES_M3_CAREER_PIVOT,
+        REYES_M4_EMMA_COLLEGE,
+        REYES_M5_ANNUAL_REVIEW,
+        REYES_M6_NEW_RELATIONSHIP,
+    )
+except ImportError:
+    from scenarios.reyes_journey import (  # type: ignore[no-redef]
+        REYES_M2_ONBOARDING,
+        REYES_M3_CAREER_PIVOT,
+        REYES_M4_EMMA_COLLEGE,
+        REYES_M5_ANNUAL_REVIEW,
+        REYES_M6_NEW_RELATIONSHIP,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# David Huang — Journey Meetings 2-6
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .huang_journey import (
+        HUANG_M2_ONBOARDING,
+        HUANG_M3_HOME_CLOSING,
+        HUANG_M4_BABY_ANNOUNCEMENT,
+        HUANG_M5_PROPERTY_OFFER,
+        HUANG_M6_STARTUP_WINDFALL,
+    )
+except ImportError:
+    from scenarios.huang_journey import (  # type: ignore[no-redef]
+        HUANG_M2_ONBOARDING,
+        HUANG_M3_HOME_CLOSING,
+        HUANG_M4_BABY_ANNOUNCEMENT,
+        HUANG_M5_PROPERTY_OFFER,
+        HUANG_M6_STARTUP_WINDFALL,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dr. Priya Patel — Journey Meetings 2-6
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .patel_journey import (
+        PATEL_M2_ONBOARDING,
+        PATEL_M3_PARTNERSHIP_BUYIN,
+        PATEL_M4_ANNUAL_REVIEW,
+        PATEL_M5_VIKRAM_BUSINESS,
+        PATEL_M6_PARTNER_EXIT,
+    )
+except ImportError:
+    from scenarios.patel_journey import (  # type: ignore[no-redef]
+        PATEL_M2_ONBOARDING,
+        PATEL_M3_PARTNERSHIP_BUYIN,
+        PATEL_M4_ANNUAL_REVIEW,
+        PATEL_M5_VIKRAM_BUSINESS,
+        PATEL_M6_PARTNER_EXIT,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# George & Patricia Sullivan — Journey Meetings 2-6
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from .sullivan_journey import (
+        SULLIVAN_M2_ONBOARDING,
+        SULLIVAN_M3_PATRICIA_RETIRES,
+        SULLIVAN_M4_CONDO_SALE,
+        SULLIVAN_M5_ANNUAL_REVIEW,
+        SULLIVAN_M6_LTC_DISCUSSION,
+    )
+except ImportError:
+    from scenarios.sullivan_journey import (  # type: ignore[no-redef]
+        SULLIVAN_M2_ONBOARDING,
+        SULLIVAN_M3_PATRICIA_RETIRES,
+        SULLIVAN_M4_CONDO_SALE,
+        SULLIVAN_M5_ANNUAL_REVIEW,
+        SULLIVAN_M6_LTC_DISCUSSION,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Registry — maps short name → transcript list
 # ─────────────────────────────────────────────────────────────────────────────
 SCENARIOS: dict[str, list[dict[str, str]]] = {
-    "sarah_chen":             SARAH_CHEN,
-    "robert_linda_hayes":     ROBERT_LINDA_HAYES,
-    "marcus_williams":        MARCUS_WILLIAMS,
-    "jennifer_reyes":         JENNIFER_REYES,
-    "david_huang":            DAVID_HUANG,
-    "dr_priya_patel":         DR_PRIYA_PATEL,
+    # ── Original prospecting scenarios (Meeting 1 for each persona) ──────────
+    "sarah_chen":               SARAH_CHEN,
+    "robert_linda_hayes":       ROBERT_LINDA_HAYES,
+    "marcus_williams":          MARCUS_WILLIAMS,
+    "jennifer_reyes":           JENNIFER_REYES,
+    "david_huang":              DAVID_HUANG,
+    "dr_priya_patel":           DR_PRIYA_PATEL,
     "george_patricia_sullivan": GEORGE_PATRICIA_SULLIVAN,
+    # ── Sarah Chen journey — follow-up meetings M2 through M6 ─────────────
+    "sarah_chen_m2_onboarding":      SARAH_CHEN_M2_ONBOARDING,
+    "sarah_chen_m3_market_downturn": SARAH_CHEN_M3_MARKET_DOWNTURN,
+    "sarah_chen_m4_engagement":      SARAH_CHEN_M4_ENGAGEMENT,
+    "sarah_chen_m5_annual_review":   SARAH_CHEN_M5_ANNUAL_REVIEW,
+    "sarah_chen_m6_expecting":       SARAH_CHEN_M6_EXPECTING,
+    # ── Hayes journey — follow-up meetings M2 through M6 ──────────────────
+    "hayes_m2_onboarding":           HAYES_M2_ONBOARDING,
+    "hayes_m3_health_scare":         HAYES_M3_HEALTH_SCARE,
+    "hayes_m4_linda_retirement":     HAYES_M4_LINDA_RETIREMENT,
+    "hayes_m5_annual_review":        HAYES_M5_ANNUAL_REVIEW,
+    "hayes_m6_robert_retires":       HAYES_M6_ROBERT_RETIRES,
+    # ── Williams journey — follow-up meetings M2 through M6 ───────────────
+    "williams_m2_onboarding":        WILLIAMS_M2_ONBOARDING,
+    "williams_m3_acquirer_crisis":   WILLIAMS_M3_ACQUIRER_CRISIS,
+    "williams_m4_new_venture":       WILLIAMS_M4_NEW_VENTURE,
+    "williams_m5_annual_review":     WILLIAMS_M5_ANNUAL_REVIEW,
+    "williams_m6_secondary_sale":    WILLIAMS_M6_SECONDARY_SALE,
+    # ── Reyes journey — follow-up meetings M2 through M6 ──────────────────
+    "reyes_m2_onboarding":           REYES_M2_ONBOARDING,
+    "reyes_m3_career_pivot":         REYES_M3_CAREER_PIVOT,
+    "reyes_m4_emma_college":         REYES_M4_EMMA_COLLEGE,
+    "reyes_m5_annual_review":        REYES_M5_ANNUAL_REVIEW,
+    "reyes_m6_new_relationship":     REYES_M6_NEW_RELATIONSHIP,
+    # ── Huang journey — follow-up meetings M2 through M6 ──────────────────
+    "huang_m2_onboarding":           HUANG_M2_ONBOARDING,
+    "huang_m3_home_closing":         HUANG_M3_HOME_CLOSING,
+    "huang_m4_baby_announcement":    HUANG_M4_BABY_ANNOUNCEMENT,
+    "huang_m5_property_offer":       HUANG_M5_PROPERTY_OFFER,
+    "huang_m6_startup_windfall":     HUANG_M6_STARTUP_WINDFALL,
+    # ── Patel journey — follow-up meetings M2 through M6 ──────────────────
+    "patel_m2_onboarding":           PATEL_M2_ONBOARDING,
+    "patel_m3_partnership_buyin":    PATEL_M3_PARTNERSHIP_BUYIN,
+    "patel_m4_annual_review":        PATEL_M4_ANNUAL_REVIEW,
+    "patel_m5_vikram_business":      PATEL_M5_VIKRAM_BUSINESS,
+    "patel_m6_partner_exit":         PATEL_M6_PARTNER_EXIT,
+    # ── Sullivan journey — follow-up meetings M2 through M6 ───────────────
+    "sullivan_m2_onboarding":        SULLIVAN_M2_ONBOARDING,
+    "sullivan_m3_patricia_retires":  SULLIVAN_M3_PATRICIA_RETIRES,
+    "sullivan_m4_condo_sale":        SULLIVAN_M4_CONDO_SALE,
+    "sullivan_m5_annual_review":     SULLIVAN_M5_ANNUAL_REVIEW,
+    "sullivan_m6_ltc_discussion":    SULLIVAN_M6_LTC_DISCUSSION,
 }
 
 SCENARIO_DESCRIPTIONS: dict[str, str] = {
-    "sarah_chen":               "Tech executive, 35 • aggressive • $850K AUM • early-retirement, equity concentration",
+    # Original prospecting meetings
+    "sarah_chen":               "Tech executive, 35 • aggressive • $850K AUM • early-retirement, equity concentration  [M1 prospecting]",
     "robert_linda_hayes":       "Pre-retirement teachers, 58/56 • conservative • $680K 401k + pension • SS bridge",
     "marcus_williams":          "Entrepreneur post-exit, 48 • moderate-aggressive • $4.2M sale + $400K • charitable DAF + estate",
     "jennifer_reyes":           "Divorce settlement, 42 • cautious-moderate • $1.1M • college + income + compliance flag",
     "david_huang":              "Inheritance recipient, 36 • moderate • $2.3M • ESG focus, no prior investing",
     "dr_priya_patel":           "Physician catch-up, 44 • aggressive • ~$215K • loans paid, 529 zero-start, backdoor Roth",
     "george_patricia_sullivan": "Retirees rebalancing, 68/64 • conservative • $3.1M • too-aggressive drift, income + estate",
+    # Sarah Chen journey arc
+    "sarah_chen_m2_onboarding":      "Sarah Chen [M2] onboarding • Jan 2024 • IPS, RSU 25% rule, tax plan, insurance, will",
+    "sarah_chen_m3_market_downturn": "Sarah Chen [M3] downturn • Sep 2024 • tech -32%, harvest losses, FIRE only 4mo behind",
+    "sarah_chen_m4_engagement":      "Sarah Chen [M4] engagement • Mar 2025 • Michael joins, prenup, joint architecture, no-buy SF",
+    "sarah_chen_m5_annual_review":   "Sarah Chen [M5] annual review • Jun 2025 • $1.47M combined, 38% conc, ahead of FIRE, DAF",
+    "sarah_chen_m6_expecting":       "Sarah Chen [M6] baby • Jan 2026 • expecting Jul, 529, $2.5M insurance, FIRE -> 50, home buy",
+    # Hayes journey arc
+    "hayes_m2_onboarding":           "Hayes [M2] onboarding • Jan 2024 • IPS, SS delay to 70, healthcare bridge, 403b withdrawal sequence",
+    "hayes_m3_health_scare":         "Hayes [M3] health scare • Oct 2024 • Robert cardiac event, retire at 63 not 65, disability review",
+    "hayes_m4_linda_retirement":     "Hayes [M4] Linda retires • Mar 2025 • both retired, ACA bridge, LTC hybrid policy purchased",
+    "hayes_m5_annual_review":        "Hayes [M5] annual review • Jul 2025 • $812K 403b, equity bump to 38%, Roth conversion ladder",
+    "hayes_m6_robert_retires":       "Hayes [M6] Robert's last day • Jan 2026 • pension confirmed, Medicare 4yr gap, Alaska cruise",
+    # Williams journey arc
+    "williams_m2_onboarding":        "Williams [M2] onboarding • Jan 2024 • DAF $500K, $2.3M deployment, 529 superfund, acquirer lockup",
+    "williams_m3_acquirer_crisis":   "Williams [M3] acquirer crisis • Nov 2024 • stock -40%, $840K position, lockup Dec 15, sell Jan 5",
+    "williams_m4_new_venture":       "Williams [M4] new venture • Apr 2025 • AI co-founder, $250K staged, trust structure for equity",
+    "williams_m5_annual_review":     "Williams [M5] annual review • Jun 2025 • $3.4M portfolio, 11.4% return, $540K DAF, CodeFirst pledge",
+    "williams_m6_secondary_sale":    "Williams [M6] secondary sale • Jan 2026 • PE offers $800K for earnout, 3-bucket deployment, DAF offset",
+    # Reyes journey arc
+    "reyes_m2_onboarding":           "Reyes [M2] onboarding • Jan 2024 • flat fee transparency, 4-bucket plan, 529s, $1M term life",
+    "reyes_m3_career_pivot":         "Reyes [M3] career pivot • Aug 2024 • $115K private practice vs $78K hospital, SEP-IRA, Liam insurance",
+    "reyes_m4_emma_college":         "Reyes [M4] college apps • Sep 2025 • SAI $18K, full-need school may beat state, FAFSA strategy",
+    "reyes_m5_annual_review":        "Reyes [M5] annual review • Mar 2025 • $1.03M portfolio, $1.2M net worth, Liam swimming $6K/yr",
+    "reyes_m6_new_relationship":     "Reyes [M6] new relationship • Jan 2026 • Emma accepted, net $14K/yr, David Kim, prenup planning",
+    # Huang journey arc
+    "huang_m2_onboarding":           "Huang [M2] onboarding • Jan 2024 • ESG portfolio, DCA $1.5M, home pre-approval, commercial hold",
+    "huang_m3_home_closing":         "Huang [M3] home closing • Sep 2024 • $1.38M Seattle home, 20% down, commercial property $8.4K/mo",
+    "huang_m4_baby_announcement":    "Huang [M4] baby • Apr 2025 • Amy 10wks pregnant, 529, $2M term life, Seattle childcare $4K/mo",
+    "huang_m5_property_offer":       "Huang [M5] property offer • Aug 2025 • $1.8M buyer, 1031 option, Eva family buyout alternative",
+    "huang_m6_startup_windfall":     "Huang [M6] startup windfall • Jan 2026 • $380K from grandfather's startup, fund Eva buyout",
+    # Patel journey arc
+    "patel_m2_onboarding":           "Patel [M2] onboarding • Jan 2024 • backdoor Roth, mega-backdoor 401k, 529s, decline whole-life",
+    "patel_m3_partnership_buyin":    "Patel [M3] buy-in • Jun 2024 • $280K partnership, brokerage + HELOC + seller note, ROI analysis",
+    "patel_m4_annual_review":        "Patel [M4] annual review • Jan 2025 • 401k $280K, brokerage rebuilt, catch-up is working",
+    "patel_m5_vikram_business":      "Patel [M5] Vikram's business • Jul 2025 • $150K tutoring center, family note structure, impact analysis",
+    "patel_m6_partner_exit":         "Patel [M6] partner exit • Jan 2026 • Dr. Chen retiring, $64K buy-in, deepen equity stake",
+    # Sullivan journey arc
+    "sullivan_m2_onboarding":        "Sullivan [M2] onboarding • Jan 2024 • 78%->50% rebalancing, zero-rate cap gains harvest, income ladder",
+    "sullivan_m3_patricia_retires":  "Sullivan [M3] Patricia retires • Jul 2024 • income picture changes, ACA bridge, Medicare 13mo away",
+    "sullivan_m4_condo_sale":        "Sullivan [M4] condo sale • Feb 2025 • $950K La Jolla, partial 121 exclusion, $541K proceeds, 529s",
+    "sullivan_m5_annual_review":     "Sullivan [M5] annual review • Jun 2025 • $142K spend, Patricia consulting offsets, Roth conversions",
+    "sullivan_m6_ltc_discussion":    "Sullivan [M6] LTC • Jan 2026 • Patricia's mother triggers, quotes, self-insure vs. policy analysis",
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scenario metadata for run_scenario.py — meeting type and prospective flag
+# ─────────────────────────────────────────────────────────────────────────────
+SCENARIO_METADATA: dict[str, dict] = {
+    # Original prospecting meetings
+    "sarah_chen":               {"meeting_type": "prospecting",     "is_prospective": True},
+    "robert_linda_hayes":       {"meeting_type": "prospecting",     "is_prospective": True},
+    "marcus_williams":          {"meeting_type": "prospecting",     "is_prospective": True},
+    "jennifer_reyes":           {"meeting_type": "prospecting",     "is_prospective": True},
+    "david_huang":              {"meeting_type": "prospecting",     "is_prospective": True},
+    "dr_priya_patel":           {"meeting_type": "prospecting",     "is_prospective": True},
+    "george_patricia_sullivan": {"meeting_type": "prospecting",     "is_prospective": True},
+    # Sarah Chen journey
+    "sarah_chen_m2_onboarding":      {"meeting_type": "onboarding",       "is_prospective": False},
+    "sarah_chen_m3_market_downturn": {"meeting_type": "portfolio_review",  "is_prospective": False},
+    "sarah_chen_m4_engagement":      {"meeting_type": "planning",          "is_prospective": False},
+    "sarah_chen_m5_annual_review":   {"meeting_type": "annual_review",     "is_prospective": False},
+    "sarah_chen_m6_expecting":       {"meeting_type": "planning",          "is_prospective": False},
+    # Hayes journey
+    "hayes_m2_onboarding":           {"meeting_type": "onboarding",        "is_prospective": False},
+    "hayes_m3_health_scare":         {"meeting_type": "planning",          "is_prospective": False},
+    "hayes_m4_linda_retirement":     {"meeting_type": "planning",          "is_prospective": False},
+    "hayes_m5_annual_review":        {"meeting_type": "annual_review",     "is_prospective": False},
+    "hayes_m6_robert_retires":       {"meeting_type": "planning",          "is_prospective": False},
+    # Williams journey
+    "williams_m2_onboarding":        {"meeting_type": "onboarding",        "is_prospective": False},
+    "williams_m3_acquirer_crisis":   {"meeting_type": "portfolio_review",  "is_prospective": False},
+    "williams_m4_new_venture":       {"meeting_type": "planning",          "is_prospective": False},
+    "williams_m5_annual_review":     {"meeting_type": "annual_review",     "is_prospective": False},
+    "williams_m6_secondary_sale":    {"meeting_type": "planning",          "is_prospective": False},
+    # Reyes journey
+    "reyes_m2_onboarding":           {"meeting_type": "onboarding",        "is_prospective": False},
+    "reyes_m3_career_pivot":         {"meeting_type": "planning",          "is_prospective": False},
+    "reyes_m4_emma_college":         {"meeting_type": "planning",          "is_prospective": False},
+    "reyes_m5_annual_review":        {"meeting_type": "annual_review",     "is_prospective": False},
+    "reyes_m6_new_relationship":     {"meeting_type": "planning",          "is_prospective": False},
+    # Huang journey
+    "huang_m2_onboarding":           {"meeting_type": "onboarding",        "is_prospective": False},
+    "huang_m3_home_closing":         {"meeting_type": "portfolio_review",  "is_prospective": False},
+    "huang_m4_baby_announcement":    {"meeting_type": "planning",          "is_prospective": False},
+    "huang_m5_property_offer":       {"meeting_type": "planning",          "is_prospective": False},
+    "huang_m6_startup_windfall":     {"meeting_type": "planning",          "is_prospective": False},
+    # Patel journey
+    "patel_m2_onboarding":           {"meeting_type": "onboarding",        "is_prospective": False},
+    "patel_m3_partnership_buyin":    {"meeting_type": "planning",          "is_prospective": False},
+    "patel_m4_annual_review":        {"meeting_type": "annual_review",     "is_prospective": False},
+    "patel_m5_vikram_business":      {"meeting_type": "planning",          "is_prospective": False},
+    "patel_m6_partner_exit":         {"meeting_type": "planning",          "is_prospective": False},
+    # Sullivan journey
+    "sullivan_m2_onboarding":        {"meeting_type": "onboarding",        "is_prospective": False},
+    "sullivan_m3_patricia_retires":  {"meeting_type": "planning",          "is_prospective": False},
+    "sullivan_m4_condo_sale":        {"meeting_type": "planning",          "is_prospective": False},
+    "sullivan_m5_annual_review":     {"meeting_type": "annual_review",     "is_prospective": False},
+    "sullivan_m6_ltc_discussion":    {"meeting_type": "planning",          "is_prospective": False},
 }

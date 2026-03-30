@@ -20,6 +20,19 @@ Usage:
     # Inject with pacing (realistic delay between lines, ms)
     python tests/run_scenario.py marcus_williams --delay 800
 
+    # Run the full Sarah Chen arc end-to-end
+    python run_scenario.py sarah_chen --full
+    python run_scenario.py sarah_chen_m2_onboarding --full
+    python run_scenario.py sarah_chen_m3_market_downturn --full
+    python run_scenario.py sarah_chen_m4_engagement --full
+    python run_scenario.py sarah_chen_m5_annual_review --full
+    python run_scenario.py sarah_chen_m6_expecting --full
+
+    # Generate audio for the full arc
+    python generate_audio.py --all
+    # or individually:
+    python generate_audio.py sarah_chen_m3_market_downturn
+    
 Environment:
     CAPMARKET_BASE_URL  Backend base URL (default: http://localhost:8000)
     CAPMARKET_ADVISOR   Advisor ID (default: advisor1)
@@ -65,7 +78,7 @@ async def run_scenario(
     delay_ms: int = 0,
     client: httpx.AsyncClient,
 ) -> dict:
-    from scenarios.profiles import SCENARIOS, SCENARIO_DESCRIPTIONS
+    from scenarios.profiles import SCENARIOS, SCENARIO_DESCRIPTIONS, SCENARIO_METADATA
 
     if scenario_name not in SCENARIOS:
         _err("unknown scenario", scenario_name)
@@ -74,14 +87,15 @@ async def run_scenario(
 
     segments   = SCENARIOS[scenario_name]
     desc       = SCENARIO_DESCRIPTIONS.get(scenario_name, "")
+    meta       = SCENARIO_METADATA.get(scenario_name, {"meeting_type": "prospecting", "is_prospective": True})
     _hdr(f"Scenario: {scenario_name}\n  {desc}")
 
     # ── 1. Start meeting ───────────────────────────────────────────────────────
     t0 = time.perf_counter()
     r = await client.post(f"{API}/meetings/start", json={
         "advisor_id":     ADVISOR,
-        "meeting_type":   "prospecting",
-        "is_prospective": True,
+        "meeting_type":   meta["meeting_type"],
+        "is_prospective": meta["is_prospective"],
     })
     r.raise_for_status()
     meeting = r.json()
@@ -167,7 +181,7 @@ async def run_scenario(
 # ── CLI entry-point ────────────────────────────────────────────────────────────
 
 async def main(argv: list[str] | None = None) -> None:
-    from scenarios.profiles import SCENARIOS, SCENARIO_DESCRIPTIONS
+    from scenarios.profiles import SCENARIOS, SCENARIO_DESCRIPTIONS, SCENARIO_METADATA
 
     parser = argparse.ArgumentParser(
         description="Run a capmarket meeting scenario end-to-end",
