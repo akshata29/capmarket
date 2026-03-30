@@ -249,6 +249,9 @@ export const portfolioApi = {
   rebalance: (portfolioId: string, clientId: string) =>
     api.post(`/portfolio/${portfolioId}/rebalance?client_id=${clientId}`).then(r => r.data),
 
+  rebalanceHistory: (portfolioId: string, clientId: string) =>
+    api.get(`/portfolio/${portfolioId}/rebalance-history?client_id=${clientId}`).then(r => r.data),
+
   watch: (portfolioId: string, clientId: string) =>
     api.get<WatchData>(`/portfolio/${portfolioId}/watch?client_id=${clientId}`).then(r => r.data),
 
@@ -262,6 +265,9 @@ export const advisoryApi = {
   preMeeting: (payload: { advisor_id: string; client_profile: Record<string, unknown>; meeting_type?: string }) =>
     api.post<PreMeetingResult>('/advisory/pre-meeting', payload).then(r => r.data),
 
+  positionBriefing: (payload: { advisor_id: string; client_profile: Record<string, unknown>; timeframe_days?: number }) =>
+    api.post<Record<string, unknown>>('/advisory/position-briefing', payload).then(r => r.data),
+
   taxStrategies: (payload: { advisor_id: string; client_profile: Record<string, unknown>; tax_year?: number }) =>
     api.post('/advisory/tax-strategies', payload).then(r => r.data),
 
@@ -271,8 +277,8 @@ export const advisoryApi = {
   relationshipIdeas: (payload: { advisor_id: string; client_profile: Record<string, unknown> }) =>
     api.post('/advisory/relationship-ideas', payload).then(r => r.data),
 
-  history: (advisorId: string) =>
-    api.get('/advisory/history', { params: { advisor_id: advisorId } }).then(r => r.data),
+  history: (advisorId: string, clientId?: string, briefingType?: string) =>
+    api.get('/advisory/history', { params: { advisor_id: advisorId, client_id: clientId, briefing_type: briefingType } }).then(r => r.data),
 }
 
 // ── Client Assistant ───────────────────────────────────────────────────────

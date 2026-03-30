@@ -84,6 +84,37 @@ Search for and analyze:
 Use current date. Prioritize by portfolio impact."""
         return self.run(prompt, timeout=self._settings.foundry_grounding_timeout_seconds)
 
+    def run_weekly_scan(
+        self,
+        portfolio_tickers: list[str],
+        themes: list[str],
+        client_profile: dict[str, Any] | None = None,
+        days: int = 7,
+    ) -> dict[str, Any]:
+        """Run a comprehensive rolling weekly market intelligence scan."""
+        tickers_str = ", ".join(portfolio_tickers) if portfolio_tickers else "broad market"
+        themes_str = ", ".join(themes) if themes else "general"
+
+        prompt = f"""Perform a comprehensive {days}-day rolling financial intelligence scan for a wealth management portfolio review.
+
+Portfolio Tickers to Monitor: {tickers_str}
+Investment Themes: {themes_str}
+{f'Client Profile Context: {client_profile}' if client_profile else ''}
+
+Search for and analyze everything from the past {days} days:
+1. All news and earnings affecting monitored tickers over the past week
+2. Macro economic releases (CPI, Fed minutes/decisions, GDP revisions, jobs, PMI)
+3. Sector rotation signals and flows from the week
+4. Geopolitical developments with market impact
+5. Analyst upgrades/downgrades on held tickers
+6. Regulatory changes or SEC/FINRA notices
+7. Notable insider buying/selling in held names
+8. Fed speaker commentary and rate expectations shifts
+
+Summarize the week's narrative arc — not just individual events but the overall story.
+Prioritize by portfolio impact."""
+        return self.run(prompt, timeout=self._settings.foundry_grounding_timeout_seconds)
+
     def search_client_news(
         self,
         client_name: str,

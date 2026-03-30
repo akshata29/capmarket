@@ -325,6 +325,47 @@ class CosmosStore:
             [{"name": "@aid", "value": advisor_id}],
         )
 
+    async def list_briefings(
+        self,
+        advisor_id: str,
+        client_id: Optional[str] = None,
+        briefing_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        """Filtered briefing history by advisor, optionally by client and/or type."""
+        conditions = ["c.advisor_id = @aid"]
+        params: list[dict] = [{"name": "@aid", "value": advisor_id}]
+        if client_id:
+            conditions.append("c.client_id = @cid")
+            params.append({"name": "@cid", "value": client_id})
+        if briefing_type:
+            conditions.append("c.type = @btype")
+            params.append({"name": "@btype", "value": briefing_type})
+        where = " AND ".join(conditions)
+        q = f"SELECT * FROM c WHERE {where} ORDER BY c.created_at DESC OFFSET 0 LIMIT {limit}"
+        return await self.query("advisory_sessions", q, params, max_items=limit)
+
+    # ── Rebalance Reports ─────────────────────────────────────────────────────
+
+    async def save_rebalance_report(self, report: dict[str, Any]) -> None:
+        report["id"] = report.get("rebalance_id", report.get("id"))
+        await self.upsert("rebalance_reports", report)
+
+    async def list_rebalance_reports(
+        self,
+        client_id: str,
+        portfolio_id: Optional[str] = None,
+        limit: int = 20,
+    ) -> list[dict]:
+        conditions = ["c.client_id = @cid"]
+        params: list[dict] = [{"name": "@cid", "value": client_id}]
+        if portfolio_id:
+            conditions.append("c.portfolio_id = @pid")
+            params.append({"name": "@pid", "value": portfolio_id})
+        where = " AND ".join(conditions)
+        q = f"SELECT * FROM c WHERE {where} ORDER BY c.checked_at DESC OFFSET 0 LIMIT {limit}"
+        return await self.query("rebalance_reports", q, params, max_items=limit)
+
     # ── Client Conversations ──────────────────────────────────────────────────
 
     async def save_conversation_turn(self, turn: dict[str, Any]) -> None:

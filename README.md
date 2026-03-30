@@ -12,17 +12,33 @@ End-to-end wealth advisor platform built on **Azure AI Foundry Responses API v2*
 |-------------------|----------------|
 | ![Clients](docs/images/Clients.png) | ![Client Details](docs/images/Client%20Details.png) |
 
-| Portfolio Watch | Portfolio Positions |
-|-----------------|---------------------|
-| ![Portfolio Watch](docs/images/Portfolio%20Watch.png) | ![Portfolio Position](docs/images/Portfolio%20Position.png) |
+| Client Meeting History | Rebalancing |
+|------------------------|-------------|
+| ![Client Meeting History](docs/images/Client%20Meeting%20History.png) | ![Rebalance](docs/images/Rebalance.png) |
 
-| Intel Feed | Market Regime |
-|------------|---------------|
-| ![Intel Feed](docs/images/Intel%20Feed.png) | ![Market Regime](docs/images/Market%20Regime.png) |
+| Pre-Meeting Briefing | Position Briefing |
+|----------------------|-------------------|
+| ![Pre Meeting Briefing](docs/images/Pre%20Meeting%20Briefing.png) | ![Position Briefing](docs/images/Position%20Briefing.png) |
 
-| Backtesting | Audit Trail |
-|-------------|-------------|
-| ![Backtesting](docs/images/Backtesting.png) | ![Audit Trail](docs/images/Audit%20Trail.png) |
+| Tax Strategies | Relationship Ideas |
+|----------------|--------------------|
+| ![Tax Strategies](docs/images/Tax%20Strategies.png) | ![Relationship Ideas](docs/images/Relationship%20Ideas.png) |
+
+| Advisor AI Chat | Portfolio Watch |
+|-----------------|------------------|
+| ![Advisor AI Chat](docs/images/Advisor%20AI%20Chat.png) | ![Portfolio Watch](docs/images/Portfolio%20Watch.png) |
+
+| Portfolio Positions | Intel Feed |
+|---------------------|------------|
+| ![Portfolio Position](docs/images/Portfolio%20Position.png) | ![Intel Feed](docs/images/Intel%20Feed.png) |
+
+| Market Regime | Backtesting |
+|---------------|-------------|
+| ![Market Regime](docs/images/Market%20Regime.png) | ![Backtesting](docs/images/Backtesting.png) |
+
+| Audit Trail | |
+|-------------|---|
+| ![Audit Trail](docs/images/Audit%20Trail.png) | |
 
 ## Architecture
 
@@ -48,14 +64,15 @@ Azure AI Foundry  Responses API  CosmosDB async   AI Search
 
 | Module | Agents | Workflow | Key Capability |
 |--------|--------|----------|----------------|
-| **Meeting Intelligence** | Transcription, Sentiment, PII, Profile, Recommendation, Summary | `MeetingWorkflow` | Real-time transcript to compliance-checked recs |
-| **Client Intelligence** | Profile | CRUD + merge | CRM enrichment from meeting extractions; risk profile, goals, tax bracket, estate planning |
-| **Portfolio Construction** | Portfolio, News, Backtesting, Rebalance | `PortfolioWorkflow` | 6-stage DAG (Sense, Think, Act) with HITL gates at every step |
-| **Portfolio Watch** | MarketRegime, RiskAdvisory, News, Rebalance | Autonomous 30-min cycle | Continuous portfolio surveillance; Intel Feed alerts, regime classification, rebalance proximity |
-| **Backtesting** | Backtesting | On-demand | Historical performance analysis vs benchmark (SPY); Sharpe, CAGR, max drawdown, alpha |
-| **Advisory Intelligence** | Advisory, Tax, News | `AdvisoryWorkflow` | Bing-grounded pre-meeting briefings, TLH opportunities |
+| **Meeting Intelligence** | Transcription, Sentiment, PII, Profile, Recommendation, Summary | `MeetingWorkflow` | Real-time transcript to compliance-checked recs with HITL approval gates |
+| **Client Intelligence** | Profile | CRUD + merge | Rich CRM profiles: risk tolerance, tax bracket, goals, concerns, estate planning; full meeting history with advisor summary, client summary, key decisions, compliance notes, recommendations, and action items |
+| **Portfolio Construction** | Portfolio, News, Backtesting, Rebalance | `PortfolioWorkflow` | 6-stage DAG (Sense, Think, Act) with HITL gates; theme allocations, position table with signals, conviction and rationale |
+| **Rebalancing** | Rebalance, News | On-demand | Autonomous news + advisory agents check drift, momentum and threshold triggers; proposed trades with urgency, tax impact notes, estimated turnover and transaction cost |
+| **Portfolio Watch** | MarketRegime, RiskAdvisory, News, Rebalance | Autonomous 30-min cycle | Continuous portfolio surveillance; Intel Feed alerts, regime classification, rebalance proximity signals, position intelligence table |
+| **Backtesting** | Backtesting | On-demand | Historical performance vs benchmark (SPY); total return, CAGR, Sharpe, Sortino, max drawdown, alpha, win rate; AI performance narrative |
+| **Advisory Intelligence** | Advisory, Tax, News | `AdvisoryWorkflow` | 5 tabs: Pre-Meeting Briefing (client-contextualized market overview, critical alerts, portfolio-level impacts, advisor talking points, tax opportunities), Position Briefing (at-risk positions with urgency tags and opportunities), Tax Strategies (ranked TLH opportunities with implementation steps and deadlines), Advisor AI Chat (Bing-grounded Q&A with supporting evidence, action items and caveats), Relationship Ideas (categorized engagement actions with effort and timing) |
 | **Client Assistant** | Communication | `ClientServiceWorkflow` | 24/7 compliant virtual team member, escalation detection |
-| **Audit & Compliance** | All agents emit audit events | CosmosDB `audit_log` | Immutable per-agent I/O trail; human decision logging |
+| **Audit & Compliance** | All agents emit audit events | CosmosDB `audit_log` | Immutable per-agent I/O trail; human gate decisions logged with timestamp, session and client context |
 
 ## Agents
 

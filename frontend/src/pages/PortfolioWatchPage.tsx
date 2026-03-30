@@ -6,8 +6,9 @@ import {
   ArrowDown, ArrowUp, Minus, Target, Wifi, WifiOff,
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { portfolioApi } from '@/api'
+import { portfolioApi, clientsApi } from '@/api'
 import { getAdvisorId } from '@/api'
+import type { ClientProfile } from '@/types'
 import type {
   WatchData, MarketRegime, RiskAdvisory,
   WatchSnapshot, Position,
@@ -435,6 +436,8 @@ export default function PortfolioWatchPage() {
   const [searchParams] = useSearchParams()
   const [allPortfolios, setAllPortfolios] = useState<any[]>([])
   const [loadingPortfolios, setLoadingPortfolios] = useState(true)
+  const [clients, setClients] = useState<ClientProfile[]>([])
+  const [clientFilter, setClientFilter] = useState('')
   const [selectedPortfolioId, setSelectedPortfolioId] = useState('')
   const [selectedClientId, setSelectedClientId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -443,6 +446,8 @@ export default function PortfolioWatchPage() {
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<'advisory' | 'performance'>('advisory')
   const advisorId = getAdvisorId()
+
+  useEffect(() => { clientsApi.list().then(setClients).catch(() => {}) }, [advisorId])
 
   useEffect(() => {
     setLoadingPortfolios(true)
@@ -491,15 +496,38 @@ export default function PortfolioWatchPage() {
     <div className="flex h-full min-h-screen">
       {/* LEFT SIDEBAR */}
       <aside className="w-56 shrink-0 border-r border-border bg-surface-100 flex flex-col">
-        <div className="px-4 py-3 border-b border-border">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Portfolios</div>
+        <div className="px-4 py-3 border-b border-border space-y-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Client</div>
+          <select
+            value={clientFilter}
+            onChange={e => {
+              setClientFilter(e.target.value)
+              setSelectedPortfolioId('')
+              setSelectedClientId('')
+            }}
+            className="w-full bg-surface-50 border border-border rounded text-xs text-gray-200 px-2 py-1 focus:outline-none focus:border-accent"
+          >
+            <option value="">All clients</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.first_name && c.last_name
+                  ? `${c.first_name} ${c.last_name}`
+                  : c.name ?? c.id}
+              </option>
+            ))}
+          </select>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 pt-1">Portfolios</div>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
           {loadingPortfolios
             ? <div className="px-4 py-3 flex items-center gap-2 text-xs text-gray-500"><Loader2 size={12} className="animate-spin" /> Loading...</div>
-            : allPortfolios.length === 0
-              ? <div className="px-4 py-3 text-xs text-gray-600">No approved portfolios</div>
-              : allPortfolios.map(p => {
+            : (() => {
+                const visible = clientFilter
+                  ? allPortfolios.filter(p => (p.client_id ?? '') === clientFilter)
+                  : allPortfolios
+                return visible.length === 0
+                  ? <div className="px-4 py-3 text-xs text-gray-600">{clientFilter ? 'No portfolios for this client' : 'No approved portfolios'}</div>
+                  : visible.map(p => {
                   const pid = p.proposal_id ?? p.id ?? ''
                   const cid = p.client_id ?? ''
                   const isActive = pid === selectedPortfolioId
@@ -525,6 +553,7 @@ export default function PortfolioWatchPage() {
                     </button>
                   )
                 })
+              })()
           }
         </div>
       </aside>

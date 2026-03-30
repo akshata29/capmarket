@@ -689,7 +689,33 @@ async def check_rebalance(
     portfolio["last_rebalance_check"] = result["checked_at"]
     portfolio["last_rebalance_result"] = result
     await store.save_portfolio(portfolio)
+
+    import uuid as _uuid
+    report = dict(result)
+    report["rebalance_id"] = str(_uuid.uuid4())
+    report["client_id"] = client_id
+    report["advisor_id"] = portfolio.get("advisor_id", "")
+    report["created_at"] = result["checked_at"]
+    try:
+        await store.save_rebalance_report(report)
+    except Exception as exc:
+        logger.warning("save_rebalance_report_failed portfolio_id=%s error=%s", portfolio_id, exc)
+
     return result
+
+
+# ── Rebalance History ─────────────────────────────────────────────────────────
+
+@router.get("/{portfolio_id}/rebalance-history", response_model=dict)
+async def rebalance_history(
+    portfolio_id: str,
+    client_id: str = Query(...),
+    limit: int = Query(20, ge=1, le=100),
+) -> dict[str, Any]:
+    """Return historical rebalance runs for a portfolio from Cosmos."""
+    store = get_cosmos_store()
+    reports = await store.list_rebalance_reports(client_id, portfolio_id, limit=limit)
+    return {"portfolio_id": portfolio_id, "runs": reports}
 
 
 # ── Portfolio Watch (price-based equity curve) ────────────────────────────────

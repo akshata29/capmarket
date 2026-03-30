@@ -14,13 +14,13 @@ const TITLES: Record<string, string> = {
 export default function TopBar() {
   const { pathname } = useLocation()
   const base = '/' + pathname.split('/')[1]
-  const title = TITLES[base] ?? 'Capmarket'
+  const title = TITLES[base] ?? 'Capital Market'
 
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-surface-100 border-b border-border shrink-0">
       <div className="flex items-center gap-3">
         <h1 className="text-base font-semibold text-gray-100">{title}</h1>
-        <span className="badge-gold">Responses API v2</span>
+        <span className="badge-gold">Microsoft Foundry</span>
       </div>
 
       <div className="flex items-center gap-3">

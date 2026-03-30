@@ -16,6 +16,10 @@ import {
   Activity,
   AlertTriangle,
   Gauge,
+  GitBranch,
+  Network,
+  Settings,
+  Play,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAdvisor } from '@/context/AdvisorContext'
@@ -42,6 +46,15 @@ const NAV_GROUPS = [
       { to: '/audit',          icon: Shield,         label: 'Audit Trail' },
     ],
   },
+  {
+    label: 'Design',
+    items: [
+      { to: '/demo',         icon: Play,      label: 'Demo' },
+      { to: '/workflow',     icon: GitBranch, label: 'Workflow' },
+      { to: '/architecture', icon: Network,    label: 'Architecture' },
+      { to: '/settings',     icon: Settings,  label: 'Settings' },
+    ],
+  },
 ]
 
 export default function Sidebar() {
@@ -57,7 +70,7 @@ export default function Sidebar() {
           C
         </div>
         <div>
-          <div className="text-sm font-semibold text-gray-100">Capmarket</div>
+          <div className="text-sm font-semibold text-gray-100">Capital Market</div>
           <div className="text-[10px] text-gray-500 uppercase tracking-wider">Wealth Advisor</div>
         </div>
       </div>

@@ -13,6 +13,10 @@ import RebalancePage from '@/pages/RebalancePage'
 import PortfolioWatchPage from '@/pages/PortfolioWatchPage'
 import IntelFeedPage from '@/pages/IntelFeedPage'
 import MarketRegimePage from '@/pages/MarketRegimePage'
+import WorkflowPage from '@/pages/WorkflowPage'
+import ArchitecturePage from '@/pages/ArchitecturePage'
+import SettingsPage from '@/pages/SettingsPage'
+import DemoPage from '@/pages/DemoPage'
 
 export default function App() {
   return (
@@ -32,6 +36,10 @@ export default function App() {
         <Route path="watch" element={<PortfolioWatchPage />} />
         <Route path="intel-feed" element={<IntelFeedPage />} />
         <Route path="market-regime" element={<MarketRegimePage />} />
+        <Route path="workflow" element={<WorkflowPage />} />
+        <Route path="architecture" element={<ArchitecturePage />} />
+        <Route path="demo" element={<DemoPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   )
