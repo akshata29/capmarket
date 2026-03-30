@@ -25,7 +25,13 @@ Usage:
     # Play back immediately (requires ffplay or Windows Media Player)
     python tests/generate_audio.py sarah_chen --play
 
-Output:
+    # Also write separate advisor/client tracks
+    python tests/generate_audio.py sarah_chen --all-tracks
+
+Output (default):
+    tests/audio/<scenario_name>_mixed.wav     — interleaved (advisor + client)
+
+Output (--all-tracks):
     tests/audio/<scenario_name>_advisor.wav   — advisor lines only
     tests/audio/<scenario_name>_client.wav    — client lines only
     tests/audio/<scenario_name>_mixed.wav     — interleaved (advisor + client)
@@ -235,6 +241,7 @@ def _write_wav(pcm: bytes, path: Path) -> None:
 def generate_scenario_audio(
     scenario_name: str,
     out_dir: Path,
+    all_tracks: bool = False,
 ) -> dict[str, Path]:
     """
     Synthesize all turns for a scenario.
@@ -307,11 +314,8 @@ def generate_scenario_audio(
         mixed_pcm.extend([pcm, pause])
 
     paths: dict[str, Path] = {}
-    for role, chunks in [
-        ("advisor", advisor_pcm),
-        ("client",  client_pcm),
-        ("mixed",   mixed_pcm),
-    ]:
+    tracks = [("advisor", advisor_pcm), ("client", client_pcm), ("mixed", mixed_pcm)] if all_tracks else [("mixed", mixed_pcm)]
+    for role, chunks in tracks:
         if not chunks:
             continue
         raw  = b"".join(chunks)
@@ -333,6 +337,8 @@ def main() -> None:
     parser.add_argument("scenario", nargs="?", help="Scenario name (omit for --all)")
     parser.add_argument("--all",  action="store_true", help="Generate audio for all scenarios")
     parser.add_argument("--out",  default="tests/audio",  help="Output directory (default: tests/audio)")
+    parser.add_argument("--all-tracks", action="store_true",
+                        help="Also write separate _advisor.wav and _client.wav (default: mixed only)")
     parser.add_argument("--play", action="store_true",
                         help="Open the 'mixed' WAV with the system default player when done")
     args = parser.parse_args()
@@ -347,7 +353,7 @@ def main() -> None:
     for name in names:
         print(f"\n{'='*60}\nGenerating audio for: {name}\n{'='*60}")
         try:
-            paths = generate_scenario_audio(name, out_dir)
+            paths = generate_scenario_audio(name, out_dir, all_tracks=args.all_tracks)
             if args.play and "mixed" in paths:
                 import subprocess
                 subprocess.Popen(["cmd", "/c", "start", "", str(paths["mixed"])], shell=False)
