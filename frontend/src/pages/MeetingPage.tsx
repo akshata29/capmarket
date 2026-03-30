@@ -199,7 +199,8 @@ export default function MeetingPage() {
     // cleanup fires ws.close() while ws is still CONNECTING → browser error.
     // Setting alive=false lets the onopen guard skip the stale instance.
     let alive = true
-    const ws = new WebSocket(`ws://localhost:8000/api/meetings/${sid}/ws`)
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const ws = new WebSocket(`${wsProto}//${window.location.host}/api/meetings/${sid}/ws`)
 
     ws.onopen = () => {
       if (!alive) { ws.close(); return }
@@ -260,7 +261,7 @@ export default function MeetingPage() {
       })
       setSession(s)
       if (!isProspect && selectedClient) {
-        const brief = await meetingsApi.preBriefing({
+        const brief = await meetingsApi.preBriefing(s.id, {
           client_id: selectedClient, advisor_id: getAdvisorId(), meeting_type: meetingType,
         }).catch(() => null)
         if (brief) setPreBriefing(brief as Record<string, unknown>)
@@ -301,7 +302,7 @@ export default function MeetingPage() {
         const bytes = new Uint8Array(pcm.buffer)
         let binary = ''
         for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-        fetch(`http://localhost:8000/api/meetings/${sessionId}/audio/stream`, {
+        fetch(`/api/meetings/${sessionId}/audio/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ audio_base64: btoa(binary), speaker_hint: 'client', session_id: sessionId }),
@@ -342,7 +343,7 @@ export default function MeetingPage() {
     }
     // Flush any remaining audio buffered in the SDK recognizer
     if (session) {
-      fetch(`http://localhost:8000/api/meetings/${session.id as string}/audio/stream`, { method: 'DELETE' }).catch(() => {})
+      fetch(`/api/meetings/${session.id as string}/audio/stream`, { method: 'DELETE' }).catch(() => {})
     }
     setIsRecording(false)
   }

@@ -18,6 +18,7 @@ interface BriefingRecord {
   news_briefing?: Record<string, unknown>
   tax_analysis?: Record<string, unknown>
   relationship_ideas?: Record<string, unknown>
+  market_regime?: Record<string, unknown>
   client_email?: { subject?: string; body?: string; key_points?: string[] }
   meeting_type?: string
   result?: Record<string, unknown>  // tax_strategies: holds { strategies, total_opportunity, priority_order }
@@ -1371,7 +1372,7 @@ export default function AdvisoryPage() {
                           <span className="text-xs text-gray-300">{clientName.first_name} {clientName.last_name}</span>
                         )}
                         {hasEmail && (
-                          <Mail size={11} className="text-accent ml-auto" title="Has client email" />
+                          <Mail size={11} className="text-accent ml-auto" aria-label="Has client email" />
                         )}
                       </div>
                       <div className="text-xs text-gray-500">{date}</div>

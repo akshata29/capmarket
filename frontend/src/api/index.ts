@@ -141,8 +141,8 @@ export const meetingsApi = {
       id: (r.data.id ?? r.data.session_id) as string,
     })),
 
-  preBriefing: (payload: { client_id: string; advisor_id: string; meeting_type?: string }) =>
-    api.post('/meetings/pre-briefing', payload).then(r => r.data),
+  preBriefing: (sessionId: string, payload: { client_id: string; advisor_id: string; meeting_type?: string }) =>
+    api.post(`/meetings/${sessionId}/pre-briefing`, payload).then(r => r.data),
 
   get: (id: string) =>
     api.get<MeetingSession>(`/meetings/${id}`).then(r => r.data),

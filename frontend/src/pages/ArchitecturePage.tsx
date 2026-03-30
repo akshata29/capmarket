@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
   X, FileCode2, Zap, Mic, BarChart2, Lightbulb, MessageCircle,
-  Activity, Database, Bot, Search, Shield, ArrowDown,
+  Activity, Database, Bot, Search, Shield, ArrowDown, Radio, Globe,
 } from 'lucide-react'
 import clsx from 'clsx'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type CardType = 'service' | 'orchestration' | 'agent' | 'store' | 'ai-platform' | 'search' | 'auth'
+type CardType = 'service' | 'orchestration' | 'agent' | 'store' | 'ai-platform' | 'search' | 'auth' | 'speech'
 
 interface ArchDetail {
   badge: string
@@ -36,6 +36,7 @@ const CARD_STYLE: Record<CardType, { card: string; icon: string; text: string; s
   'ai-platform': { card: 'bg-violet-950/50 border-violet-500/40',   icon: 'text-violet-400',  text: 'text-violet-100',  sub: 'text-violet-400/70',  dot: 'bg-violet-400' },
   search:        { card: 'bg-teal-950/50 border-teal-500/40',       icon: 'text-teal-400',    text: 'text-teal-100',    sub: 'text-teal-400/70',    dot: 'bg-teal-400' },
   auth:          { card: 'bg-orange-950/50 border-orange-500/40',   icon: 'text-orange-400',  text: 'text-orange-100',  sub: 'text-orange-400/70',  dot: 'bg-orange-400' },
+  speech:        { card: 'bg-rose-950/50 border-rose-500/40',       icon: 'text-rose-400',    text: 'text-rose-100',    sub: 'text-rose-400/70',    dot: 'bg-rose-400' },
 }
 
 // ─── Backend service cards ─────────────────────────────────────────────────────
@@ -251,23 +252,26 @@ const AGENTS: ArchItem[] = [
     icon: Bot,
     detail: {
       badge: 'Foundry AI Agent',
-      description: 'Processes audio segments with speaker diarisation, identifying ADVISOR and CLIENT roles and streaming structured TranscriptSegment objects into the meeting workflow state.',
+      description: 'Processes audio segments from the browser and produces annotated transcripts with speaker labels and financial terminology normalisation. Audio transcription uses the Azure Speech REST API directly; GPT-4o then enriches and normalises the text.',
       dataFlow: [
-        'Audio segment received (PCM / MP3 / WebM format)',
-        'Azure Speech SDK transcribes raw audio to text',
-        'GPT-4o assigns speaker role: ADVISOR or CLIENT per segment',
-        'TranscriptSegment objects appended to transcript_buffer in workflow state',
-        'full_transcript accumulated for downstream PII and summary processing',
+        'Browser MediaRecorder produces audio/webm;codecs=opus chunks',
+        'transcribe_audio_segment() POSTs the base64-decoded bytes to the Azure Speech REST API via httpx',
+        'Speech REST endpoint: https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1',
+        'DisplayText extracted from the JSON response — returned without LLM enrichment in the hot real-time path to keep latency low',
+        'enrich_transcript() uses GPT-4o via Foundry Responses API for speaker labelling, financial term normalisation and compliance flag extraction in the batch path',
+        'TranscriptSegment objects accumulated in transcript_buffer in MeetingWorkflowState',
       ],
       keyFacts: [
-        'Speaker diarisation from acoustic features + conversational role hints',
-        'Handles silent segments, crosstalk, and low-quality microphone input',
-        'Transcript streamed in near-real-time — latency < 2s per segment',
+        'Azure Speech REST API used directly (not the Speech SDK) — REST API natively accepts audio/webm;codecs=opus, which the SDK does not handle cleanly',
+        'Auth: Ocp-Apim-Subscription-Key header using azure_speech_key from settings',
+        'Graceful fallback: returns empty segments if azure_speech_key is not configured',
+        'Real-time path skips LLM enrichment to keep per-chunk latency under 2s',
+        'Compliance flags (guaranteed returns, insider info, unsuitable products) extracted in enrichment pass',
         'Model: chat4o (agent_transcription_model in settings)',
       ],
-      designDecision: 'Foundry agent wraps Azure Speech SDK + GPT-4o for combined acoustic transcription and role assignment in one step, avoiding a two-stage pipeline with intermediate storage.',
-      files: ['backend/app/agents/transcription_agent.py'],
-      technology: ['Azure AI Foundry', 'Azure Speech SDK', 'OpenAI GPT-4o', 'chat4o'],
+      designDecision: 'Azure Speech REST API chosen over the Speech SDK because the browser emits audio/webm;codecs=opus (MediaRecorder default) and the REST endpoint accepts this natively, while the SDK PushAudioInputStream defaults to raw PCM and silently produces empty results for WebM.',
+      files: ['backend/app/agents/transcription_agent.py', 'backend/config.py'],
+      technology: ['Azure AI Foundry', 'Azure Speech REST API', 'httpx', 'OpenAI GPT-4o', 'chat4o'],
     },
   },
   {
@@ -405,27 +409,30 @@ const AGENTS: ArchItem[] = [
   {
     id: 'news',
     label: 'NewsAgent',
-    sublabel: 'Market news scan · chat41',
+    sublabel: 'Market news scan · Bing Grounding · chat41',
     type: 'agent',
     icon: Bot,
     detail: {
       badge: 'Foundry AI Agent',
-      description: 'Scans real-time market news for a client\'s portfolio tickers and investment themes, returning tagged and sentiment-scored news items used in both advisory briefings and portfolio watch cycles.',
+      description: 'Scans real-time market news via Bing Grounding (USE_BING = True). Makes grounded Bing searches for macro events, earnings, sector news, geopolitical risks, and ESG developments, returning structured intelligence for the advisory briefing, meeting prep, and portfolio watch cycles.',
       dataFlow: [
-        'Receives ticker list and investment themes from calling workflow',
-        'Azure AI Search queried for latest indexed news articles',
-        'GPT-4.1 scores article relevance and extracts per-ticker sentiment',
-        'Structured news bundle returned — used by advisory, meeting, and watch workflows',
+        'Receives portfolio ticker list and investment themes from the calling workflow',
+        'BingGroundingTool attached to the agent in Foundry via bing_grounding_connection_id',
+        'GPT-4.1 performs live Bing searches for each ticker and theme',
+        'News items classified by urgency: CRITICAL / HIGH / MEDIUM / LOW',
+        'Structured JSON bundle returned — portfolio_impacts, market_themes, macro_briefing',
+        'Used by Meeting pre-meeting prep, Advisory workflow, and Portfolio Watch cycle',
       ],
       keyFacts: [
-        'Shared agent used by Meeting, Advisory, and Portfolio Watch workflows',
-        'Azure AI Search semantic hybrid retrieval for news article lookup',
-        'Returns: headlines, summaries, sentiment scores, ticker tags',
+        'USE_BING = True — BingGroundingTool registered on agent_ensure at startup',
+        'Bing connection configured via bing_grounding_connection_id in Azure AI Foundry project',
+        'grounding timeout: foundry_grounding_timeout_seconds (240s default) instead of standard timeout',
+        'Returns: critical_alerts, high_priority, portfolio_impacts, macro_briefing, sector_rotations',
         'Model: chat41 (agent_news_model in settings)',
       ],
-      designDecision: undefined,
-      files: ['backend/app/agents/news_agent.py', 'backend/app/persistence/search_store.py'],
-      technology: ['Azure AI Foundry', 'Azure AI Search', 'GPT-4.1', 'chat41'],
+      designDecision: 'Bing Grounding via Foundry chosen over Azure AI Search for news — Bing delivers live web search results without requiring a news ingestion pipeline or search index management.',
+      files: ['backend/app/agents/news_agent.py', 'backend/app/agents/base_agent.py'],
+      technology: ['Azure AI Foundry', 'Bing Grounding', 'BingGroundingTool', 'GPT-4.1', 'chat41'],
     },
   },
   {
@@ -678,9 +685,9 @@ const FOUNDRY_AGENTS = [
 ]
 
 const SEARCH_INDEXES = [
-  { name: 'client-profiles',       desc: 'Semantic search over client goals and notes' },
-  { name: 'meeting-summaries',     desc: 'Full-text search over past meeting summaries' },
-  { name: 'market-news',           desc: 'Hybrid search over indexed market articles' },
+  { name: 'cmclients',    desc: 'Client profiles indexed on create; searched on /api/clients?search=' },
+  { name: 'cmmeetings',   desc: 'Meeting summaries indexed post-GATE-2 approval' },
+  { name: 'cmdocuments',  desc: 'Client documents for CommunicationAgent RAG retrieval' },
 ]
 
 const AZURE_SERVICES: ArchItem[] = [
@@ -761,28 +768,63 @@ const AZURE_SERVICES: ArchItem[] = [
     icon: Search,
     detail: {
       badge: 'Search',
-      description: 'Azure AI Search provides semantic hybrid retrieval (vector + keyword) for RAG workflows. Three indexes cover client profiles, meeting summaries, and market news — used by NewsAgent, CommunicationAgent, and advisory briefing generation.',
+      description: 'Azure AI Search provides semantic hybrid retrieval for the platform. SearchStore wraps the azure-search-documents SDK. Used by the clients router for client profile indexing and semantic search, and by the meetings router to re-index client profile enrichments after a session ends.',
       dataFlow: [
-        'SearchStore singleton initialises SearchClient per index on first access',
-        'NewsAgent queries market-news index with ticker + theme hybrid query',
-        'CommunicationAgent queries client-profiles index for additional context',
-        'Meeting summaries indexed post-GATE-2 approval for future retrieval',
-        'Results returned as ranked document chunks with semantic relevance scores',
+        'SearchStore singleton initialised; gracefully disabled if AZURE_SEARCH_ENDPOINT not set',
+        'POST /api/clients: new client profile uploaded to cmclients index via upload_document()',
+        'GET /api/clients?search=...: search_clients() queries cmclients with semantic hybrid search',
+        'POST /api/meetings/…/promote: updated client profile re-indexed to cmclients after meeting extractions',
+        'Results returned as ranked document chunks using semantic configuration "default"',
       ],
       keyFacts: [
-        'Hybrid retrieval: BM25 keyword + vector embedding merged with RRF scoring',
-        'Embedding model: text-embedding-ada-002 (azure_openai_embedding_deployment_name)',
-        'Index: client-profiles — goals, notes, risk profile, interaction history',
-        'Index: meeting-summaries — post-meeting summaries with advisor tags',
-        'Index: market-news — daily ingested news articles with ticker tagging',
-        'SearchStore gracefully disables when AZURE_SEARCH_ENDPOINT not set (dev mode)',
+        'search_clients() called from clients router when ?search= query param is provided',
+        'upload_document() called on client create and after meeting profile update',
+        'search_meetings() and search_documents() defined in SearchStore — available for future use',
+        'Semantic query_type used: query_type="semantic" with semantic_configuration_name="default"',
+        'AZURE_SEARCH_INDEX env vars: cmclients, cmmeetings, cmdocuments (from .env)',
+        'SearchStore disables gracefully (returns [] / no-op) when endpoint not configured',
       ],
-      designDecision: 'Azure AI Search chosen for its native integration with Azure AI Foundry for grounding, support for hybrid retrieval combining vector and keyword, and managed indexing without self-hosting a vector database.',
+      designDecision: 'Azure AI Search used for client semantic search rather than Cosmos DB full-text because Cosmos NoSQL lacks ranked semantic retrieval — advisors need to find clients by theme, goal, or free-text note, not just exact partition-key lookups.',
       files: [
         'backend/app/persistence/search_store.py',
+        'backend/app/routers/clients.py',
+        'backend/app/routers/meetings.py',
         'backend/config.py',
       ],
-      technology: ['Azure AI Search', 'azure-search-documents SDK', 'text-embedding-ada-002', 'Semantic Ranking'],
+      technology: ['Azure AI Search', 'azure-search-documents SDK', 'Semantic Ranking', 'AzureKeyCredential'],
+    },
+  },
+  {
+    id: 'azure_speech',
+    label: 'Azure AI Speech',
+    sublabel: 'Speech REST API · TranscriptionAgent',
+    type: 'speech',
+    icon: Radio,
+    detail: {
+      badge: 'Azure Service',
+      description: 'Azure AI Speech REST API converts browser audio (audio/webm;codecs=opus from MediaRecorder) to text. Called directly from TranscriptionAgent via httpx — no SDK dependency, just an authenticated HTTP POST to the cognitive services STT endpoint.',
+      dataFlow: [
+        'Browser MediaRecorder emits audio/webm;codecs=opus blobs during meeting',
+        'Frontend POSTs base64-encoded audio chunk to /api/meetings/{id}/audio',
+        'TranscriptionAgent.transcribe_audio_segment() decodes bytes and calls Speech REST API',
+        'POST https://{azure_speech_region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1',
+        'DisplayText extracted from JSON response and returned as TranscriptSegment',
+        'Empty result returned silently if azure_speech_key is not configured (dev fallback)',
+      ],
+      keyFacts: [
+        'Auth header: Ocp-Apim-Subscription-Key: {azure_speech_key}',
+        'Config: azure_speech_key and azure_speech_region (default: eastus) in settings',
+        'Content-Type: audio/webm;codecs=opus — matches browser MediaRecorder native output',
+        'REST API chosen over Speech SDK because the SDK PushAudioInputStream requires raw PCM and silently produces empty output for WebM/Opus',
+        'httpx used for the HTTP call (sync POST with 15s timeout)',
+        'NBest[0].Confidence extracted as confidence score when available',
+      ],
+      designDecision: 'The Speech REST API is called from the agent directly rather than through an Azure AI Foundry tool because audio transcription is a synchronous, format-sensitive operation that benefits from httpx connection reuse and direct error surfacing.',
+      files: [
+        'backend/app/agents/transcription_agent.py',
+        'backend/config.py',
+      ],
+      technology: ['Azure AI Speech', 'Speech REST API', 'httpx', 'audio/webm;codecs=opus'],
     },
   },
   {
@@ -965,6 +1007,7 @@ function ServiceCard({ item, selected, onSelect }: { item: ArchItem; selected: b
 // ─── Agent row inside agents sub-box ─────────────────────────────────────────
 function AgentRow({ item, selected, onSelect }: { item: ArchItem; selected: boolean; onSelect: (i: ArchItem) => void }) {
   const s = CARD_STYLE[item.type]
+  const hasBing = BING_AGENTS.has(item.label)
   return (
     <button
       onClick={() => onSelect(item)}
@@ -978,6 +1021,9 @@ function AgentRow({ item, selected, onSelect }: { item: ArchItem; selected: bool
       <div className="flex-1 min-w-0">
         <div className={clsx('text-[12px] font-semibold truncate', s.text)}>{item.label}</div>
       </div>
+      {hasBing && (
+        <Globe size={10} className="text-blue-400 shrink-0" aria-label="Bing Grounding" />
+      )}
       <div className={clsx('text-[9px] font-mono shrink-0', s.sub)}>{item.sublabel.split('·')[1]?.trim()}</div>
     </button>
   )
@@ -1090,6 +1136,41 @@ function AzureSearchCard({ selected, onSelect, item }: { selected: boolean; onSe
   )
 }
 
+function AzureSpeechCard({ selected, onSelect, item }: { selected: boolean; onSelect: (i: ArchItem) => void; item: ArchItem }) {
+  const s = CARD_STYLE[item.type]
+  return (
+    <button
+      onClick={() => onSelect(item)}
+      className={clsx(
+        'flex flex-col rounded-xl border p-4 transition-all text-left hover:brightness-125 w-full',
+        s.card,
+        selected && 'ring-1 ring-white/30 brightness-125',
+      )}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <Radio size={15} className={s.icon} />
+        <div>
+          <div className={clsx('text-[13px] font-semibold', s.text)}>{item.label}</div>
+          <div className={clsx('text-[10px] font-mono', s.sub)}>{item.sublabel}</div>
+        </div>
+      </div>
+      <div className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-1.5">Caller</div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className={clsx('w-1 h-1 rounded-full shrink-0', s.dot)} />
+          <code className={clsx('text-[10px] font-mono', s.text)}>TranscriptionAgent</code>
+        </div>
+        <div className={clsx('text-[10px] font-mono leading-relaxed', s.sub)}>
+          POST …/speech/recognition/conversation/cognitiveservices/v1
+        </div>
+        <div className="rounded bg-rose-950/30 px-2 py-0.5 mt-1">
+          <code className={clsx('text-[10px] font-mono', s.text)}>audio/webm;codecs=opus · httpx</code>
+        </div>
+      </div>
+    </button>
+  )
+}
+
 function AzureIdentityCard({ selected, onSelect, item }: { selected: boolean; onSelect: (i: ArchItem) => void; item: ArchItem }) {
   const s = CARD_STYLE[item.type]
   const envVars = ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET']
@@ -1124,6 +1205,11 @@ function AzureIdentityCard({ selected, onSelect, item }: { selected: boolean; on
   )
 }
 
+// ─── Agents that use Bing Grounding (USE_BING = True in source) ─────────────
+const BING_AGENTS = new Set([
+  'NewsAgent', 'CommunicationAgent', 'AdvisoryAgent', 'TaxAgent', 'MarketRegimeAgent',
+])
+
 // ─── API Routes bar ───────────────────────────────────────────────────────────
 const API_ROUTES = ['/api/clients', '/api/meetings', '/api/portfolio', '/api/advisory', '/api/assistant', '/api/audit', '/api/health']
 
@@ -1131,6 +1217,7 @@ const API_ROUTES = ['/api/clients', '/api/meetings', '/api/portfolio', '/api/adv
 const SDK_CONNECTORS = [
   { label: 'azure-cosmos async SDK',       color: 'text-sky-500' },
   { label: 'azure-ai-projects SDK v2',     color: 'text-violet-400' },
+  { label: 'Speech REST API (httpx)',      color: 'text-rose-400' },
   { label: 'azure-search-documents SDK',   color: 'text-teal-400' },
   { label: 'ClientSecretCredential',       color: 'text-orange-400' },
 ]
@@ -1259,11 +1346,16 @@ export default function ArchitecturePage() {
                   selected={isSelected('ai_foundry')}
                   onSelect={handleSelect}
                 />
-                {/* Col 3: Search + Identity stacked */}
+                {/* Col 3: Search + Speech + Identity stacked */}
                 <div className="flex flex-col gap-3">
                   <AzureSearchCard
                     item={AZURE_SERVICES[2]}
                     selected={isSelected('ai_search')}
+                    onSelect={handleSelect}
+                  />
+                  <AzureSpeechCard
+                    item={AZURE_SERVICES[4]}
+                    selected={isSelected('azure_speech')}
                     onSelect={handleSelect}
                   />
                   <AzureIdentityCard

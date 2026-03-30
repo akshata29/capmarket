@@ -322,15 +322,16 @@ async def start_meeting(request: StartMeetingRequest, background_tasks: Backgrou
 @router.post("/{session_id}/pre-briefing", response_model=dict)
 async def run_pre_briefing(
     session_id: str,
-    client_profile: dict[str, Any],
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Run pre-meeting advisory briefing (news + market context + preparation tips)."""
-    wf = get_workflow(session_id)
+    wf = await get_or_recover_workflow(session_id)
     if not wf:
         raise HTTPException(404, "Meeting session not found or expired")
 
     async def run():
+        store = get_cosmos_store()
+        client_profile = await store.get_client(wf.client_id, wf.advisor_id) or {}
         briefing = await wf.run_pre_meeting_briefing(client_profile)
         await _broadcast(session_id, {"type": "pre_briefing", "data": briefing})
 
@@ -1115,8 +1116,8 @@ async def meeting_websocket(websocket: WebSocket, session_id: str) -> None:
     try:
         await websocket.send_json({"type": "connected", "session_id": session_id})
 
-        # Validate session exists — if backend restarted, workflow is gone
-        if get_workflow(session_id) is None:
+        # Validate session exists — recover from Cosmos if backend hot-reloaded
+        if await get_or_recover_workflow(session_id) is None:
             await websocket.send_json({"type": "session_expired", "session_id": session_id})
             return
 

@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Heavy directories - MUST be excluded or ACR upload will be 900 MB+
+# ---------------------------------------------------------------------------
+.venv
+backend/.venv
+**/.venv
+node_modules
+frontend/node_modules
+**/node_modules
+
+# Test audio (107 MB of .wav files)
+tests/audio
+
+# Built frontend (not needed - built inside Docker anyway)
+frontend/dist
+
+# ---------------------------------------------------------------------------
+# Python byte-code
+# ---------------------------------------------------------------------------
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# ---------------------------------------------------------------------------
+# Secrets / environment
+# ---------------------------------------------------------------------------
+.env
+backend/.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Dev / test / docs
+# ---------------------------------------------------------------------------
+tests/scenarios
+tests/generate_audio.py
+tests/run_scenario.py
+docs
+*.log
+locustfile.py
+*.bat
+
+# ---------------------------------------------------------------------------
+# Git / IDE
+# ---------------------------------------------------------------------------
+.git
+.gitignore
+.vscode
+.idea

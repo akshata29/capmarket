@@ -115,7 +115,7 @@ const MEETING_WF: WorkflowDef = {
           'Tag articles with relevant investment themes',
           'Return structured news bundle for briefing aggregation',
         ],
-        technology: ['Azure AI Foundry', 'Azure AI Search', 'OpenAI GPT-4o'],
+        technology: ['Azure AI Foundry', 'Bing Grounding', 'OpenAI GPT-4o'],
       },
     },
     {
@@ -160,10 +160,10 @@ const MEETING_WF: WorkflowDef = {
         responsibilities: [
           'Diarise audio into ADVISOR and CLIENT speaker segments',
           'Stream TranscriptSegment objects into workflow state',
-          'Handle audio format normalisation: PCM, MP3, WebM',
+          'Accept audio/webm;codecs=opus from browser MediaRecorder via REST API',
           'Accumulate full_transcript in MeetingWorkflowState',
         ],
-        technology: ['Azure AI Foundry', 'Azure Speech SDK', 'OpenAI Whisper'],
+        technology: ['Azure AI Foundry', 'Azure Speech REST API', 'httpx'],
       },
     },
     {
@@ -179,7 +179,7 @@ const MEETING_WF: WorkflowDef = {
           'Populate piied_transcript in MeetingWorkflowState',
           'Ensure GDPR and FINRA compliance on all stored transcripts',
         ],
-        technology: ['Azure AI Foundry', 'Azure Presidio', 'OpenAI'],
+        technology: ['Azure AI Foundry', 'OpenAI GPT-4o', 'Pydantic'],
       },
     },
     {
@@ -350,7 +350,7 @@ const PORTFOLIO_WF: WorkflowDef = {
           'Score news items by investment relevance and conviction',
           'Return structured market_news bundle to workflow state',
         ],
-        technology: ['Azure AI Foundry', 'Azure AI Search', 'OpenAI GPT-4o'],
+        technology: ['Azure AI Foundry', 'Bing Grounding', 'OpenAI GPT-4o'],
       },
     },
     {
@@ -601,7 +601,7 @@ const ADVISORY_WF: WorkflowDef = {
           'Score news item sentiment per holding',
           'Return structured news bundle for aggregation step',
         ],
-        technology: ['Azure AI Foundry', 'Azure AI Search', 'OpenAI GPT-4o'],
+        technology: ['Azure AI Foundry', 'Bing Grounding', 'OpenAI GPT-4o'],
       },
     },
     {
@@ -812,7 +812,7 @@ const CLIENT_SERVICE_WF: WorkflowDef = {
           'Maintain rolling 90-day conversation history window',
           'Link turn record to escalation data if applicable',
         ],
-        technology: ['Azure Cosmos DB', 'Azure AI Search', 'Python SDK'],
+        technology: ['Azure Cosmos DB', 'Python SDK'],
       },
     },
     {

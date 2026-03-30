@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import {
   Mic, Users, TrendingUp, Lightbulb, Activity, MessageCircle, Shield,
   ChevronRight, ChevronLeft, Bot, ArrowRight, AlertTriangle,
@@ -302,20 +302,23 @@ Content-Type: application/json
       },
       {
         id: 'schema',
-        title: 'Cosmos DB — 7 Containers, Purpose-Built Partitioning',
-        story: 'All client data lives in the Cosmos DB clients container, partitioned by advisor_id for optimal multi-advisor query patterns. Each of the 7 containers is partitioned specifically for the query patterns it serves — not a general-purpose schema.',
+        title: 'Cosmos DB — 10 Containers, Purpose-Built Partitioning',
+        story: 'All client data lives in the Cosmos DB clients container, partitioned by advisor_id for optimal multi-advisor query patterns. Each of the 10 containers is partitioned specifically for the query patterns it serves — not a general-purpose schema.',
         agents: [{ name: 'CosmosStore', model: 'Azure Cosmos DB (No-SQL)', file: 'backend/app/persistence/cosmos_store.py', grounded: false }],
         outputSnippet: `# backend/app/persistence/cosmos_store.py
 COLLECTIONS = {
-  "sessions":           "/client_id",    # Meeting sessions — query by client
-  "clients":            "/advisor_id",   # Client profiles — query by book
-  "portfolios":         "/client_id",    # Proposals — query by client
-  "audit_log":          "/client_id",    # Immutable audit — query by client
-  "agent_audits":       "/run_id",       # Per-agent records — query by run
-  "checkpoints":        "/workflow_id",  # HITL checkpoints — query by workflow
-  "advisory_sessions":  "/advisor_id",   # Advisory intel — query by book
-}`,
-        businessPoint: '7 containers. Each partitioned for the specific access pattern it serves. All workflow state persists here — server restarts do not lose state. Full replay capability for compliance investigation.',
+  "clients":              "/advisor_id",   # Client profiles — query by book
+  "sessions":             "/client_id",    # Meeting sessions — query by client
+  "portfolios":           "/client_id",    # Proposals — query by client
+  "backtests":            "/client_id",    # Backtest results — query by client
+  "rebalance_reports":    "/client_id",    # Trade lists — query by client
+  "advisory_sessions":    "/advisor_id",   # Advisory intel — query by book
+  "client_conversations": "/client_id",   # 24/7 chat history — query by client
+  "checkpoints":          "/workflow_id",  # HITL checkpoints — query by workflow
+  "audit_log":            "/client_id",    # Immutable audit — query by client
+  "agent_audits":         "/run_id",       # Per-agent records — query by run
+}`, 
+        businessPoint: '10 containers. Each partitioned for the specific access pattern it serves. All workflow state persists here — server restarts do not lose state. Full replay capability for compliance investigation.',
       },
     ],
   },
@@ -386,7 +389,7 @@ ESG preference, target 12-15% expected return"
         id: 'construction',
         title: 'Portfolio Construction — Goldman-Grade Quant Engine',
         story: "The highest-stakes agent in the system runs on the most capable model. It executes a 5-phase methodology: mandate translation → theme-to-ticker mapping → multi-factor scoring → mean-variance optimization → risk overlays. This is not a simple stock picker.",
-        agents: [{ name: 'CapmarketPortfolioConstructionAgent', model: 'gpt-4o (most capable — highest stakes agent)', file: 'backend/app/agents/portfolio_agent.py', grounded: false }],
+        agents: [{ name: 'CapmarketPortfolioConstructionAgent', model: 'o1 / chato1 (reasoning model — highest stakes agent)', file: 'backend/app/agents/portfolio_agent.py', grounded: false }],
         outputSnippet: `Multi-Factor Scoring Weights:
   Fundamentals (30%): P/E, EV/EBITDA, FCF yield, ROE
   Technicals   (25%): RSI, MACD, ATR, trend strength
@@ -926,10 +929,10 @@ export default function DemoPage() {
                 ['Weekly manual market review', 'Continuous 30-min autonomous surveillance'],
                 ['Annual CPA for tax planning', 'Per-meeting tax opportunity identification'],
               ].map(([old, ai]) => (
-                <>
-                  <div key={`o-${old}`} className="px-4 py-2 text-gray-500 border-b border-border/50">{old}</div>
-                  <div key={`a-${ai}`} className="px-4 py-2 text-gray-300 border-b border-border/50 border-l border-border">{ai}</div>
-                </>
+                <React.Fragment key={old}>
+                  <div className="px-4 py-2 text-gray-500 border-b border-border/50">{old}</div>
+                  <div className="px-4 py-2 text-gray-300 border-b border-border/50 border-l border-border">{ai}</div>
+                </React.Fragment>
               ))}
             </div>
           </div>

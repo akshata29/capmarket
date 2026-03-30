@@ -1,0 +1,327 @@
+<#
+.SYNOPSIS
+    Deploy the Capmarket Wealth Advisor Platform (FastAPI + React SPA) to Azure
+    App Service using a single Docker container image in Azure Container Registry.
+
+.DESCRIPTION
+    This script:
+      1. Creates/verifies the Azure Container Registry (ACR)
+      2. Builds the Docker image via ACR Tasks (cloud build - no local Docker needed)
+      3. Creates an App Service Plan (Linux, if it does not exist)
+      4. Creates a Web App for Containers (if it does not exist)
+      5. Configures container registry credentials on the web app
+      6. Sets all application settings (replaces .env in production)
+      7. Enables Cosmos DB access from Azure services
+      8. Enables application logging
+
+.PREREQUISITES
+    - Azure CLI installed and logged in  (az login)
+    - Copy this file to deploy.ps1, fill in all <PLACEHOLDER> values, then run:
+        .\deploy.ps1
+
+.EXAMPLE
+    .\deploy.ps1
+#>
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+# ---------------------------------------------------------------------------
+# CONFIGURATION
+# ---------------------------------------------------------------------------
+
+# Existing resource group (RG, Cosmos, AI Search, and Foundry are already deployed)
+$ResourceGroup  = "<RESOURCE_GROUP>"
+$Location       = "<LOCATION>"                  # e.g. eastus2
+
+# Azure Container Registry (globally unique, lowercase alphanumeric, 5-50 chars)
+# Creates it if it does not already exist.
+$AcrName        = "<ACR_NAME>"                  # e.g. myappacr
+
+# App Service
+$AppServicePlan = "<APP_SERVICE_PLAN_NAME>"
+$WebAppName     = "<WEB_APP_NAME>"              # => https://<WEB_APP_NAME>.azurewebsites.net
+$Sku            = "P1v3"                        # B1=dev/test  P1v3=production
+
+# Docker image tag
+$ImageTag       = "capmarket:latest"
+
+# ---------------------------------------------------------------------------
+# Azure Identity (Service Principal)
+# ---------------------------------------------------------------------------
+$AzureTenantId       = "<AZURE_TENANT_ID>"
+$AzureClientId       = "<AZURE_CLIENT_ID>"
+$AzureClientSecret   = "<AZURE_CLIENT_SECRET>"
+$AzureSubscriptionId = "<AZURE_SUBSCRIPTION_ID>"
+
+# ---------------------------------------------------------------------------
+# Azure OpenAI
+# ---------------------------------------------------------------------------
+$OpenAiEndpoint            = "https://<OPENAI_ACCOUNT>.openai.azure.com/"
+$OpenAiApiKey              = "<AZURE_OPENAI_API_KEY>"
+$OpenAiApiVersion          = "2024-10-21"
+$OpenAiChatDeployment      = "<CHAT_DEPLOYMENT_NAME>"       # e.g. chat4o
+$OpenAiEmbeddingDeployment = "<EMBEDDING_DEPLOYMENT_NAME>"  # e.g. embedding
+
+# ---------------------------------------------------------------------------
+# Azure AI Foundry
+# ---------------------------------------------------------------------------
+$FoundryProjectEndpoint     = "https://<AI_SERVICES_ACCOUNT>.services.ai.azure.com/api/projects/<PROJECT_NAME>"
+$FoundryModelDeploymentName = "<FOUNDRY_MODEL_DEPLOYMENT>"  # e.g. chat4o
+$FoundryAgentName           = "CapMarketAgent"
+$FoundryApiVersion          = "2025-05-15-preview"
+$FoundryResponseTimeout     = "180"
+
+# ---------------------------------------------------------------------------
+# Per-agent model deployments
+# ---------------------------------------------------------------------------
+$AgentNewsModel           = "<MODEL_DEPLOYMENT>"   # e.g. chat41
+$AgentThemesModel         = "<MODEL_DEPLOYMENT>"
+$AgentUniverseModel       = "<MODEL_DEPLOYMENT>"   # e.g. chat41mini
+$AgentFundamentalsModel   = "<MODEL_DEPLOYMENT>"   # e.g. chat4o
+$AgentTechnicalsModel     = "<MODEL_DEPLOYMENT>"
+$AgentOptionsModel        = "<MODEL_DEPLOYMENT>"   # e.g. chato4mini
+$AgentRiskModel           = "<MODEL_DEPLOYMENT>"
+$AgentPortfolioModel      = "<MODEL_DEPLOYMENT>"   # e.g. chato1
+$AgentRebalanceModel      = "<MODEL_DEPLOYMENT>"   # e.g. chat41nano
+$AgentMonitoringModel     = "<MODEL_DEPLOYMENT>"   # e.g. chat41mini
+$AgentSmartScanModel      = "<MODEL_DEPLOYMENT>"
+$AgentSmartScanSynthModel = "<MODEL_DEPLOYMENT>"
+
+# ---------------------------------------------------------------------------
+# Azure Blob Storage
+# ---------------------------------------------------------------------------
+$StorageConnStr   = "DefaultEndpointsProtocol=https;AccountName=<STORAGE_ACCOUNT>;AccountKey=<STORAGE_KEY>;EndpointSuffix=core.windows.net"
+$StorageAccount   = "<STORAGE_ACCOUNT_NAME>"
+$StorageContainer = "capmarkets"
+
+# ---------------------------------------------------------------------------
+# Azure Cosmos DB
+# ---------------------------------------------------------------------------
+$CosmosEndpoint  = "https://<COSMOS_ACCOUNT>.documents.azure.com:443/"
+$CosmosDatabase  = "capmarkets"
+$CosmosContainer = "portfolio"
+
+# ---------------------------------------------------------------------------
+# Azure AI Search
+# ---------------------------------------------------------------------------
+$SearchEndpoint       = "https://<SEARCH_SERVICE>.search.windows.net"
+$SearchKey            = "<AZURE_SEARCH_KEY>"
+$SearchIndexClients   = "cmclients"
+$SearchIndexMeetings  = "cmmeetings"
+$SearchIndexDocuments = "cmdocuments"
+
+# ---------------------------------------------------------------------------
+# Bing Grounding
+# ---------------------------------------------------------------------------
+$BingConnectionId   = "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>/providers/Microsoft.CognitiveServices/accounts/<AI_SERVICES>/projects/<PROJECT>/connections/<BING_CONNECTION>"
+$BingConnectionName = "<BING_CONNECTION_NAME>"
+
+# ---------------------------------------------------------------------------
+# Azure Speech
+# ---------------------------------------------------------------------------
+$SpeechKey      = "<AZURE_SPEECH_KEY>"
+$SpeechRegion   = "<SPEECH_REGION>"   # e.g. eastus
+$SpeechLanguage = "en-US"
+
+# ---------------------------------------------------------------------------
+# Azure Language Service (PII detection)
+# ---------------------------------------------------------------------------
+$LanguageKey      = "<AZURE_LANGUAGE_KEY>"
+$LanguageEndpoint = "https://<LANGUAGE_ACCOUNT>.cognitiveservices.azure.com/"
+
+# ---------------------------------------------------------------------------
+# VALIDATION
+# ---------------------------------------------------------------------------
+$Required = @{
+    "AzureTenantId"          = $AzureTenantId
+    "AzureClientId"          = $AzureClientId
+    "AzureClientSecret"      = $AzureClientSecret
+    "AzureSubscriptionId"    = $AzureSubscriptionId
+    "OpenAiApiKey"           = $OpenAiApiKey
+    "CosmosEndpoint"         = $CosmosEndpoint
+    "SearchEndpoint"         = $SearchEndpoint
+    "FoundryProjectEndpoint" = $FoundryProjectEndpoint
+}
+foreach ($key in $Required.Keys) {
+    if ([string]::IsNullOrWhiteSpace($Required[$key]) -or $Required[$key] -like "*<*>*") {
+        Write-Error "Missing required value: $key -- edit deploy.ps1 and replace the placeholder."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# DEPLOYMENT
+# ---------------------------------------------------------------------------
+
+Write-Host "`n==> Setting active subscription..." -ForegroundColor Cyan
+az account set --subscription $AzureSubscriptionId
+
+Write-Host "`n==> Ensuring Resource Group exists: $ResourceGroup ($Location)..." -ForegroundColor Cyan
+az group create --name $ResourceGroup --location $Location --output none
+
+# -- Container Registry -------------------------------------------------------
+Write-Host "`n==> Creating Azure Container Registry: $AcrName..." -ForegroundColor Cyan
+az acr create `
+    --name           $AcrName `
+    --resource-group $ResourceGroup `
+    --sku            Basic `
+    --admin-enabled  true `
+    --output         none
+
+# Cloud build -- no local Docker daemon required
+Write-Host "`n==> Building and pushing image via ACR Tasks (cloud build)..." -ForegroundColor Cyan
+Write-Host "    Uploading repo context to Azure and building there -- this may take a few minutes."
+az acr build `
+    --registry $AcrName `
+    --image    $ImageTag `
+    --file     Dockerfile `
+    .
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "ACR build failed (exit $LASTEXITCODE). Fix the build errors above and re-run deploy.ps1."
+    exit 1
+}
+
+$AcrLoginServer = az acr show --name $AcrName --query loginServer --output tsv
+$AcrPassword    = az acr credential show --name $AcrName --query "passwords[0].value" --output tsv
+
+# -- App Service Plan ---------------------------------------------------------
+Write-Host "`n==> Creating App Service Plan: $AppServicePlan (SKU=$Sku)..." -ForegroundColor Cyan
+az appservice plan create `
+    --name           $AppServicePlan `
+    --resource-group $ResourceGroup `
+    --location       $Location `
+    --is-linux `
+    --sku            $Sku `
+    --output         none
+
+# -- Web App for Containers ---------------------------------------------------
+$ContainerImage = "$AcrLoginServer/$ImageTag"
+
+Write-Host "`n==> Creating Web App: $WebAppName..." -ForegroundColor Cyan
+$existingApp = az webapp show --name $WebAppName --resource-group $ResourceGroup --query name --output tsv 2>$null
+if (-not $existingApp) {
+    az webapp create `
+        --name           $WebAppName `
+        --resource-group $ResourceGroup `
+        --plan           $AppServicePlan `
+        --output         none
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "az webapp create failed (exit $LASTEXITCODE)."
+        exit 1
+    }
+    Write-Host "    Web app created." -ForegroundColor Green
+} else {
+    Write-Host "    Web app already exists, skipping create." -ForegroundColor Green
+}
+
+# -- Registry credentials -----------------------------------------------------
+Write-Host "`n==> Configuring container registry credentials..." -ForegroundColor Cyan
+az webapp config container set `
+    --name                      $WebAppName `
+    --resource-group            $ResourceGroup `
+    --container-image-name      $ContainerImage `
+    --container-registry-url    "https://$AcrLoginServer" `
+    --container-registry-user   $AcrName `
+    --container-registry-password $AcrPassword `
+    --output                    none
+
+# -- Application Settings (replaces .env in production) ----------------------
+Write-Host "`n==> Setting application configuration (env vars)..." -ForegroundColor Cyan
+
+$AppUrl = "https://${WebAppName}.azurewebsites.net"
+
+az webapp config appsettings set `
+    --name           $WebAppName `
+    --resource-group $ResourceGroup `
+    --settings `
+        WEBSITES_PORT="80" `
+        AZURE_TENANT_ID="$AzureTenantId" `
+        AZURE_CLIENT_ID="$AzureClientId" `
+        AZURE_CLIENT_SECRET="$AzureClientSecret" `
+        AZURE_SUBSCRIPTION_ID="$AzureSubscriptionId" `
+        AZURE_OPENAI_ENDPOINT="$OpenAiEndpoint" `
+        AZURE_OPENAI_API_KEY="$OpenAiApiKey" `
+        AZURE_OPENAI_API_VERSION="$OpenAiApiVersion" `
+        AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="$OpenAiChatDeployment" `
+        AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME="$OpenAiEmbeddingDeployment" `
+        FOUNDRY_PROJECT_ENDPOINT="$FoundryProjectEndpoint" `
+        FOUNDRY_MODEL_DEPLOYMENT_NAME="$FoundryModelDeploymentName" `
+        FOUNDRY_AGENT_NAME="$FoundryAgentName" `
+        FOUNDRY_API_VERSION="$FoundryApiVersion" `
+        FOUNDRY_RESPONSE_TIMEOUT_SECONDS="$FoundryResponseTimeout" `
+        AGENT_NEWS_MODEL="$AgentNewsModel" `
+        AGENT_THEMES_MODEL="$AgentThemesModel" `
+        AGENT_UNIVERSE_MODEL="$AgentUniverseModel" `
+        AGENT_FUNDAMENTALS_MODEL="$AgentFundamentalsModel" `
+        AGENT_TECHNICALS_MODEL="$AgentTechnicalsModel" `
+        AGENT_OPTIONS_MODEL="$AgentOptionsModel" `
+        AGENT_RISK_MODEL="$AgentRiskModel" `
+        AGENT_PORTFOLIO_MODEL="$AgentPortfolioModel" `
+        AGENT_REBALANCE_MODEL="$AgentRebalanceModel" `
+        AGENT_MONITORING_MODEL="$AgentMonitoringModel" `
+        AGENT_SMART_SCAN_MODEL="$AgentSmartScanModel" `
+        AGENT_SMART_SCAN_SYNTHESIS_MODEL="$AgentSmartScanSynthModel" `
+        AZURE_STORAGE_CONNECTION_STRING="$StorageConnStr" `
+        AZURE_BLOB_STORAGE_NAME="$StorageAccount" `
+        AZURE_STORAGE_CONTAINER="$StorageContainer" `
+        COSMOSDB_ENDPOINT="$CosmosEndpoint" `
+        COSMOS_DB_DATABASE="$CosmosDatabase" `
+        COSMOS_DB_CONTAINER="$CosmosContainer" `
+        AZURE_SEARCH_ENDPOINT="$SearchEndpoint" `
+        AZURE_SEARCH_KEY="$SearchKey" `
+        AZURE_SEARCH_INDEX_CLIENTS="$SearchIndexClients" `
+        AZURE_SEARCH_INDEX_MEETINGS="$SearchIndexMeetings" `
+        AZURE_SEARCH_INDEX_DOCUMENTS="$SearchIndexDocuments" `
+        BING_GROUNDING_CONNECTION_ID="$BingConnectionId" `
+        BING_GROUNDING_CONNECTION_NAME="$BingConnectionName" `
+        AZURE_SPEECH_KEY="$SpeechKey" `
+        AZURE_SPEECH_REGION="$SpeechRegion" `
+        AZURE_SPEECH_LANGUAGE="$SpeechLanguage" `
+        ENABLE_SPEAKER_DIARIZATION="true" `
+        AZURE_LANGUAGE_KEY="$LanguageKey" `
+        AZURE_LANGUAGE_ENDPOINT="$LanguageEndpoint" `
+        CORS_ALLOWED_ORIGINS="$AppUrl" `
+        SENTIMENT_ANALYSIS_ENABLED="true" `
+        RECOMMENDATION_ENABLED="true" `
+        RECOMMENDATION_CONFIDENCE_THRESHOLD="0.7" `
+        MAX_RECOMMENDATIONS_PER_SESSION="10" `
+        PII_DETECTION_ENABLED="true" `
+        AUTO_REDACT_PII="true" `
+        ENABLE_AUTO_SUMMARIZATION="true" `
+        SUMMARY_TRIGGER_THRESHOLD_MINUTES="15" `
+        DEFAULT_SUMMARY_TYPE="detailed" `
+        DEFAULT_SUMMARY_PERSONA="advisor" `
+        COMPLIANCE_MODE_ENABLED="true" `
+        AUDIT_TRAIL_ENABLED="true" `
+        REQUIRE_RECOMMENDATION_APPROVAL="true" `
+    --output none
+
+# -- Cosmos DB: allow Azure services (covers App Service outbound IPs) ---------
+Write-Host "`n==> Enabling Cosmos DB access from Azure services..." -ForegroundColor Cyan
+$CosmosAccountName = ($CosmosEndpoint -replace "https://", "" -replace "\.documents\.azure\.com.*", "")
+az cosmosdb update `
+    --name           $CosmosAccountName `
+    --resource-group $ResourceGroup `
+    --output         none
+
+# -- Application logging -------------------------------------------------------
+Write-Host "`n==> Enabling application logging..." -ForegroundColor Cyan
+az webapp log config `
+    --name                     $WebAppName `
+    --resource-group           $ResourceGroup `
+    --docker-container-logging filesystem `
+    --output                   none
+
+# ---------------------------------------------------------------------------
+# DONE
+# ---------------------------------------------------------------------------
+Write-Host "`nDeployment complete!" -ForegroundColor Green
+Write-Host "    App URL   : $AppUrl" -ForegroundColor Yellow
+Write-Host "    API health: $AppUrl/api/health" -ForegroundColor Yellow
+Write-Host "    API docs  : $AppUrl/api/docs" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "    Logs: az webapp log tail --name $WebAppName --resource-group $ResourceGroup" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "To redeploy after a code change:" -ForegroundColor Cyan
+Write-Host "    az acr build --registry $AcrName --image $ImageTag --file Dockerfile ."
+Write-Host "    az webapp restart --name $WebAppName --resource-group $ResourceGroup"

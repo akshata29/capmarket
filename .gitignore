@@ -62,3 +62,4 @@ tests/tests/audio/
 local.settings.json
 
 backend/.venv/*
+deploy.ps1

@@ -43,32 +43,55 @@ _READY_SIGNALS = re.compile(
 )
 
 
-def _language_sentiment(text: str) -> dict[str, float]:
-    """
-    Call Azure Language Text Analytics sentiment endpoint.
-    Returns confidence scores dict. Falls back to neutral on any error.
-    """
-    try:
+# Module-level singleton so the underlying HTTP connection is reused across calls.
+# Initialised lazily on first use; reset to None on SSL/connection errors so the
+# next call gets a fresh connection.
+_ta_client: Any = None
+
+
+def _get_ta_client() -> Any:
+    global _ta_client
+    if _ta_client is None:
         from azure.ai.textanalytics import TextAnalyticsClient
         from azure.core.credentials import AzureKeyCredential
         from backend.config import get_settings
         settings = get_settings()
         if not settings.azure_language_key or not settings.azure_language_endpoint:
-            return {"positive": 0.5, "neutral": 0.5, "negative": 0.0}
-
-        client = TextAnalyticsClient(
+            return None
+        _ta_client = TextAnalyticsClient(
             endpoint=settings.azure_language_endpoint,
             credential=AzureKeyCredential(settings.azure_language_key),
         )
-        results = client.analyze_sentiment([text[:5000]])
-        doc = results[0]
-        if doc.is_error:
-            return {"positive": 0.5, "neutral": 0.5, "negative": 0.0}
-        s = doc.confidence_scores
-        return {"positive": s.positive, "neutral": s.neutral, "negative": s.negative}
-    except Exception as exc:
-        logger.warning("text_analytics_sentiment_failed error=%s", str(exc))
-        return {"positive": 0.5, "neutral": 0.5, "negative": 0.0}
+    return _ta_client
+
+
+def _language_sentiment(text: str) -> dict[str, float]:
+    """
+    Call Azure Language Text Analytics sentiment endpoint.
+    Returns confidence scores dict. Falls back to neutral on any error.
+    Retries once on SSL/connection errors with a fresh client.
+    """
+    global _ta_client
+    neutral = {"positive": 0.5, "neutral": 0.5, "negative": 0.0}
+
+    for attempt in range(2):
+        try:
+            client = _get_ta_client()
+            if client is None:
+                return neutral
+            results = client.analyze_sentiment([text[:5000]])
+            doc = results[0]
+            if doc.is_error:
+                return neutral
+            s = doc.confidence_scores
+            return {"positive": s.positive, "neutral": s.neutral, "negative": s.negative}
+        except Exception as exc:
+            err = str(exc)
+            logger.warning("text_analytics_sentiment_failed attempt=%d error=%s", attempt + 1, err)
+            # Reset client on connection/SSL errors so next attempt gets a fresh one
+            _ta_client = None
+            if attempt == 1:
+                return neutral
 
 
 class SentimentAgent:

@@ -512,7 +512,7 @@ export default function PortfolioWatchPage() {
               <option key={c.id} value={c.id}>
                 {c.first_name && c.last_name
                   ? `${c.first_name} ${c.last_name}`
-                  : c.name ?? c.id}
+                  : c.id}
               </option>
             ))}
           </select>
