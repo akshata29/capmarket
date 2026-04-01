@@ -18,6 +18,7 @@ export default function ClientProfilePage() {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null)
+  const [expandedPortfolioId, setExpandedPortfolioId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!clientId) return
@@ -69,7 +70,6 @@ export default function ClientProfilePage() {
   }
 
   const totalMeetings = meetings.length
-  const latestPortfolio = portfolios[0]
 
   // Compute missing critical fields (mirrors ClientsPage badge logic)
   const missingFields: string[] = []
@@ -627,94 +627,126 @@ export default function ClientProfilePage() {
         )}
       </div>
 
-      {/* Latest portfolio */}
-      {latestPortfolio && (() => {
-        // Normalise metrics — API returns either old shape (metrics.*) or new shape (risk_metrics.*)
-        const rm = (latestPortfolio as any).risk_metrics ?? (latestPortfolio as any).metrics ?? {}
-        const vol    = rm.estimated_volatility  ?? rm.volatility        ?? null
-        const sharpe = rm.estimated_sharpe      ?? rm.sharpe_ratio      ?? null
-        const mdd    = rm.max_drawdown_estimate ?? rm.max_drawdown       ?? null
-        const hhi    = rm.hhi                                            ?? null
-        const positions: any[] = (latestPortfolio as any).positions ?? []
-        const rationale: string = (latestPortfolio as any).rationale ?? (latestPortfolio as any).portfolio_rationale ?? ''
-        const statusVal: string = String((latestPortfolio as any).status ?? '')
-        const statusColor = statusVal === 'approved' ? 'text-green-400 bg-green-900/20 border-green-700/40'
-          : statusVal === 'pending_approval' ? 'text-yellow-400 bg-yellow-900/20 border-yellow-700/40'
-          : 'text-gray-400 bg-surface-50 border-border'
+      {/* Portfolio history */}
+      {portfolios.length > 0 && (
+        <div className="card">
+          <div className="section-title mb-4">Portfolios ({portfolios.length})</div>
+          <div className="space-y-3">
+            {portfolios.map((port: any, idx: number) => {
+              const portId = port.run_id ?? port.proposal_id ?? port.id ?? String(idx)
+              const isLatest = idx === 0
+              // Default: latest is expanded; others collapsed unless explicitly opened
+              const isExpanded = expandedPortfolioId !== null ? expandedPortfolioId === portId : isLatest
 
-        return (
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="section-title">Latest Portfolio</div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor}`}>{statusVal.replace(/_/g, ' ')}</span>
-                <Link
-                  to={`/portfolio?run=${(latestPortfolio as any).run_id ?? (latestPortfolio as any).id ?? ''}`}
-                  className="text-xs text-accent hover:text-accent-hover"
-                >
-                  Open Builder →
-                </Link>
-              </div>
-            </div>
+              const rm = port.risk_metrics ?? port.metrics ?? {}
+              const vol    = rm.estimated_volatility  ?? rm.volatility        ?? null
+              const sharpe = rm.estimated_sharpe      ?? rm.sharpe_ratio      ?? null
+              const mdd    = rm.max_drawdown_estimate ?? rm.max_drawdown       ?? null
+              const hhi    = rm.hhi                                            ?? null
+              const positions: any[] = port.positions ?? []
+              const rationale: string = port.rationale ?? port.portfolio_rationale ?? ''
+              const statusVal: string = String(port.status ?? '')
+              const createdAt: string = port.created_at ?? port.approved_at ?? ''
+              const statusColor = statusVal === 'approved' ? 'text-green-400 bg-green-900/20 border-green-700/40'
+                : statusVal === 'pending_approval' ? 'text-yellow-400 bg-yellow-900/20 border-yellow-700/40'
+                : 'text-gray-400 bg-surface-50 border-border'
 
-            {rationale && (
-              <p className="text-xs text-gray-400 leading-relaxed mb-4">{rationale}</p>
-            )}
+              return (
+                <div key={portId} className={`rounded-lg border ${isLatest ? 'border-border' : 'border-border/50'} overflow-hidden`}>
+                  {/* Row header — always visible, click to expand/collapse */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedPortfolioId(isExpanded ? (idx === 0 ? null : null) : portId)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-surface-50 hover:bg-surface-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {isLatest && <span className="text-[10px] font-bold text-accent uppercase tracking-wide shrink-0">Latest</span>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor} shrink-0`}>{statusVal.replace(/_/g, ' ')}</span>
+                      {createdAt && (
+                        <span className="text-xs text-gray-500 truncate">
+                          {(() => { try { return format(new Date(createdAt), 'MMM d, yyyy') } catch { return createdAt.slice(0, 10) } })()}
+                        </span>
+                      )}
+                      {!isExpanded && rationale && (
+                        <span className="text-xs text-gray-600 truncate hidden sm:block">{rationale.slice(0, 80)}{rationale.length > 80 ? '…' : ''}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
+                      <Link
+                        to={`/portfolio?run=${portId}`}
+                        onClick={e => e.stopPropagation()}
+                        className="text-xs text-accent hover:text-accent-hover"
+                      >
+                        Open Builder →
+                      </Link>
+                      {isExpanded ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+                    </div>
+                  </button>
 
-            {/* Risk metrics row */}
-            {(vol !== null || sharpe !== null || mdd !== null || hhi !== null) && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                {vol !== null && (
-                  <div className="stat-card p-3">
-                    <div className="stat-label">Volatility</div>
-                    <div className="text-base font-semibold text-yellow-400">{(vol * 100).toFixed(1)}%</div>
-                  </div>
-                )}
-                {sharpe !== null && (
-                  <div className="stat-card p-3">
-                    <div className="stat-label">Sharpe</div>
-                    <div className="text-base font-semibold text-gray-100">{Number(sharpe).toFixed(2)}</div>
-                  </div>
-                )}
-                {mdd !== null && (
-                  <div className="stat-card p-3">
-                    <div className="stat-label">Max Drawdown</div>
-                    <div className="text-base font-semibold text-red-400">{(mdd * 100).toFixed(1)}%</div>
-                  </div>
-                )}
-                {hhi !== null && (
-                  <div className="stat-card p-3">
-                    <div className="stat-label">HHI</div>
-                    <div className="text-base font-semibold text-gray-100">{Number(hhi).toFixed(3)}</div>
-                  </div>
-                )}
-              </div>
-            )}
+                  {/* Expanded body */}
+                  {isExpanded && (
+                    <div className="px-4 py-4 space-y-4">
+                      {rationale && (
+                        <p className="text-xs text-gray-400 leading-relaxed">{rationale}</p>
+                      )}
 
-            {/* Top positions */}
-            {positions.length > 0 && (
-              <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Positions ({positions.length})</div>
-                <div className="flex flex-wrap gap-2">
-                  {positions.slice(0, 10).map((p: any, i: number) => {
-                    const sym = p.symbol ?? p.ticker ?? ''
-                    const wt  = p.weight ?? 0
-                    return (
-                      <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-50 border border-border">
-                        <span className="font-mono text-xs font-bold text-gray-200">{sym}</span>
-                        <span className="text-xs text-gray-500">{(wt * 100).toFixed(1)}%</span>
-                      </div>
-                    )
-                  })}
-                  {positions.length > 10 && (
-                    <div className="px-2.5 py-1 rounded-lg bg-surface-50 border border-border text-xs text-gray-500">+{positions.length - 10} more</div>
+                      {(vol !== null || sharpe !== null || mdd !== null || hhi !== null) && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {vol !== null && (
+                            <div className="stat-card p-3">
+                              <div className="stat-label">Volatility</div>
+                              <div className="text-base font-semibold text-yellow-400">{(vol * 100).toFixed(1)}%</div>
+                            </div>
+                          )}
+                          {sharpe !== null && (
+                            <div className="stat-card p-3">
+                              <div className="stat-label">Sharpe</div>
+                              <div className="text-base font-semibold text-gray-100">{Number(sharpe).toFixed(2)}</div>
+                            </div>
+                          )}
+                          {mdd !== null && (
+                            <div className="stat-card p-3">
+                              <div className="stat-label">Max Drawdown</div>
+                              <div className="text-base font-semibold text-red-400">{(mdd * 100).toFixed(1)}%</div>
+                            </div>
+                          )}
+                          {hhi !== null && (
+                            <div className="stat-card p-3">
+                              <div className="stat-label">HHI</div>
+                              <div className="text-base font-semibold text-gray-100">{Number(hhi).toFixed(3)}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {positions.length > 0 && (
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Positions ({positions.length})</div>
+                          <div className="flex flex-wrap gap-2">
+                            {positions.slice(0, 10).map((p: any, i: number) => {
+                              const sym = p.symbol ?? p.ticker ?? ''
+                              const wt  = p.weight ?? 0
+                              return (
+                                <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-50 border border-border">
+                                  <span className="font-mono text-xs font-bold text-gray-200">{sym}</span>
+                                  <span className="text-xs text-gray-500">{(wt * 100).toFixed(1)}%</span>
+                                </div>
+                              )
+                            })}
+                            {positions.length > 10 && (
+                              <div className="px-2.5 py-1 rounded-lg bg-surface-50 border border-border text-xs text-gray-500">+{positions.length - 10} more</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
+              )
+            })}
           </div>
-        )
-      })()}
+        </div>
+      )}
     </div>
   )
 }

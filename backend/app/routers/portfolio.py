@@ -229,6 +229,20 @@ async def get_run_status(run_id: str) -> dict[str, Any]:
         store = get_cosmos_store()
         portfolio = await store.get_portfolio_by_run_id(run_id)
         if portfolio:
+            port_status = portfolio.get("status", "")
+            # Rejected/dismissed runs: return failed state, not completed
+            if port_status in ("rejected", "dismissed"):
+                return {
+                    "run_id": run_id,
+                    "status": "failed",
+                    "error": "Dismissed by advisor",
+                    "current_step": "",
+                    "gate": None,
+                    "themes": [],
+                    "market_news": {},
+                    "proposal": {},
+                    "backtest": {},
+                }
             return {
                 "run_id": run_id,
                 "status": "completed",
@@ -378,6 +392,11 @@ async def delete_checkpoint(run_id: str) -> dict[str, Any]:
     for cp in checkpoints:
         cp["status"] = "dismissed"
         await store.upsert("checkpoints", cp)
+    # Mark the portfolio document as rejected so it is excluded from client history
+    portfolio = await store.get_portfolio_by_run_id(run_id)
+    if portfolio and portfolio.get("status") not in ("approved",):
+        portfolio["status"] = "rejected"
+        await store.save_portfolio(portfolio)
     # Also mark in-memory workflow as failed so polling stops
     from backend.app.orchestration.portfolio_workflow import _running_workflows
     state = _running_workflows.get(run_id)

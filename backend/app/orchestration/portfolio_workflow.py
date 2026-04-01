@@ -253,14 +253,17 @@ class PortfolioWorkflow:
 
         if gate == PortfolioGate.THEME_ACTIVATION:
             self.state.activated_themes = self.state.themes
+            self.state.current_step = "Building universe & scoring positions"
             await self._run_think(client_profile or {}, run_backtest=run_backtest)
 
         elif gate == PortfolioGate.PORTFOLIO_APPROVAL:
+            self.state.current_step = "Running backtest & persisting portfolio"
             if run_backtest and client_profile:
                 await self._run_backtest(client_profile)
             await self._finalize(client_profile or {})
 
         elif gate == PortfolioGate.TRADE_EXECUTION:
+            self.state.current_step = "Executing trades"
             await self._execute_trades()
 
     async def _run_think(

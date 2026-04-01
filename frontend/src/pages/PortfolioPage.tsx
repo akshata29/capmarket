@@ -74,10 +74,11 @@ function deriveStage(status: string, gate: string | null | undefined, currentSte
   if (status === 'running') {
     const step = (currentStep ?? '').toLowerCase()
     if (step.includes('universe') || step.includes('construct')) return 'think'
-    if (step.includes('backtest') || step.includes('persist')) return 'act'
-    return 'sense'
+    if (step.includes('backtest') || step.includes('persist') || step.includes('executing')) return 'act'
+    // Don't flash back to sense — preserve the last known stage while the background task transitions
+    return prevStage ?? 'sense'
   }
-  return 'sense'
+  return prevStage ?? 'sense'
 }
 
 function mergeRunState(res: RunState, prev: RunState | null): RunState {
@@ -176,9 +177,20 @@ export default function PortfolioPage() {
   const handleGate = async (decision: 'approve' | 'reject') => {
     if (!running) return
     setLoading(true)
+    // Optimistically advance state so buttons disappear immediately and stage progresses
+    const optimisticStage = decision === 'approve'
+      ? (running.stage === 'gate1' ? 'think' : running.stage === 'gate2' ? 'act' : running.stage === 'gate3' ? 'completed' : running.stage)
+      : running.stage
+    setRunning(prev => prev ? { ...prev, status: decision === 'approve' ? 'running' : 'failed', gate: undefined, stage: optimisticStage } : prev)
     try {
       const res = await portfolioApi.gate(running.run_id, decision)
-      setRunning(prev => mergeRunState({ ...res, client_id: prev?.client_id }, prev))
+      // Merge but don't let the stale awaiting_approval response override our optimistic stage
+      setRunning(prev => {
+        const merged = mergeRunState({ ...res, client_id: prev?.client_id }, prev)
+        // Keep our optimistic stage if the API returned stale awaiting_approval state (background task hasn't run yet)
+        if (decision === 'approve' && merged.stage === running.stage) merged.stage = optimisticStage
+        return merged
+      })
       // Refresh checkpoints after a gate decision
       portfolioApi.checkpoints().then(setCheckpoints).catch(() => {})
     } finally {
@@ -298,7 +310,7 @@ export default function PortfolioPage() {
           {/* Header bar */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={() => setRunning(null)} className="text-gray-500 hover:text-gray-300 transition-colors">
+              <button onClick={() => { setRunning(null); portfolioApi.checkpoints().then(setCheckpoints).catch(() => {}) }} className="text-gray-500 hover:text-gray-300 transition-colors">
                 <ArrowLeft size={16} />
               </button>
               <div>
@@ -332,7 +344,7 @@ export default function PortfolioPage() {
                 loading={loading}
               />
               {(running.status === 'completed' || running.status === 'failed') && (
-                <button onClick={() => setRunning(null)} className="btn-secondary w-full mt-4 text-xs">
+                <button onClick={() => { setRunning(null); portfolioApi.checkpoints().then(setCheckpoints).catch(() => {}) }} className="btn-secondary w-full mt-4 text-xs">
                   &larr; Back
                 </button>
               )}
@@ -394,7 +406,7 @@ export default function PortfolioPage() {
                       <div className="space-y-2">
                         {(running.themes ?? []).map((t, i) => (
                           <div key={i} className="p-3 bg-surface-50 rounded-lg border border-border">
-                            <div className="text-sm font-semibold text-accent">{t.theme}</div>
+                              <div className="text-sm font-semibold text-accent">{t.theme ?? (t as any).name ?? (t as any).title ?? ''}</div>
                             {(t.description ?? t.summary) && (
                               <div className="text-xs text-gray-400 mt-1 leading-relaxed">{t.description ?? t.summary}</div>
                             )}
@@ -729,7 +741,7 @@ export default function PortfolioPage() {
                             <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-surface-50 border border-border">
                               <span className="text-green-400 text-xs mt-0.5">✓</span>
                               <div>
-                                <div className="text-xs font-semibold text-accent">{t.theme}</div>
+                                <div className="text-xs font-semibold text-accent">{t.theme ?? (t as any).name ?? (t as any).title ?? ''}</div>
                                 {t.description && <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">{t.description}</div>}
                               </div>
                             </div>

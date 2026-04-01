@@ -227,11 +227,41 @@ class CosmosStore:
         )
 
     async def list_portfolios_for_client(self, client_id: str) -> list[dict]:
-        return await self.query(
+        portfolios = await self.query(
             "portfolios",
-            "SELECT * FROM c WHERE c.client_id = @cid ORDER BY c.created_at DESC",
+            "SELECT * FROM c WHERE c.client_id = @cid AND c.status != 'rejected' AND c.status != 'dismissed' ORDER BY c.created_at DESC",
             [{"name": "@cid", "value": client_id}],
         )
+        if not portfolios:
+            return portfolios
+
+        # Self-heal: pending_approval portfolios whose checkpoint was dismissed should be excluded.
+        # Query the dismissed checkpoints for this client's run IDs in one shot.
+        pending = [p for p in portfolios if p.get("status") == "pending_approval"]
+        if pending:
+            run_ids = [p.get("run_id") or p.get("proposal_id") or p.get("id") for p in pending]
+            run_ids = [r for r in run_ids if r]
+            if run_ids:
+                placeholders = ", ".join(f"'{r}'" for r in run_ids)
+                dismissed_cps = await self.query(
+                    "checkpoints",
+                    f"SELECT c.workflow_id FROM c WHERE c.workflow_id IN ({placeholders}) AND c.status = 'dismissed'",
+                    [],
+                )
+                dismissed_ids = {cp["workflow_id"] for cp in dismissed_cps}
+                if dismissed_ids:
+                    # Mark those portfolio docs as rejected so future queries skip them
+                    for p in pending:
+                        rid = p.get("run_id") or p.get("proposal_id") or p.get("id")
+                        if rid in dismissed_ids:
+                            p["status"] = "rejected"
+                            await self.save_portfolio(p)
+                    # Return only the non-dismissed ones
+                    portfolios = [
+                        p for p in portfolios
+                        if (p.get("run_id") or p.get("proposal_id") or p.get("id")) not in dismissed_ids
+                    ]
+        return portfolios
 
     # ── Audit Log ─────────────────────────────────────────────────────────────
 

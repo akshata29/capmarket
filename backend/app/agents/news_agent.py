@@ -42,7 +42,14 @@ Respond in JSON:
   "scan_date": "...",
   "critical_alerts": [],
   "high_priority": [],
-  "market_themes": [],
+  "market_themes": [
+    {
+      "theme": "<theme name, e.g. AI Infrastructure>",
+      "summary": "<one-sentence summary>",
+      "description": "<2-3 sentence description of the theme and its market drivers>",
+      "advisor_talking_points": ["<point 1>", "<point 2>"]
+    }
+  ],
   "portfolio_impacts": [
     {
       "ticker": "...",
